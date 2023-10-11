@@ -15,21 +15,29 @@ contract LendingCircle {
     }
 
     struct Circle {
-        uint256 id;
+        // terms of the lending circle
+        uint256 id; //uid for a lending circle
         uint256 contributionAmount;
         PeriodType periodType;
         uint256 periodDuration; // in seconds
-        uint256 numberOfPeriods;
-        uint256 participantsCount; //capacity of circle (must fill to start circle)
+        uint256 numberOfPeriods; // this is also equal to the number of participants
         uint256 adminFeePercentage;
-        address payable admin;
-        uint256 nextDuePeriod;
-        address payable[] participants;
-        address payable[] outstandingRecipients;
-        mapping(address => bool) isParticipant;
-        mapping(address => uint256) contributionsPaid;
-        JoinRequest[] joinQueue;
+        // ----------------------------------------
+        // state of the lending circle
+        uint256 currentPeriodNumber; // <-- Added this field
+        uint256 nextDueTime; //timestamp of next period due datetime
+        // ----------------------------------------
+        // state of applicants requesting to join circle
         mapping(address => bool) hasRequestedToJoin;
+        JoinRequest[] joinQueue; //list of applicants. only admins can approve which can move into participants list
+        // ----------------------------------------
+        //state of participants
+        mapping(address => bool) isParticipant; // approved participant, regardless of eligibilty to receive payout
+        mapping(address => uint256) periodsPaid;
+        mapping(address => uint256) totalContributions;
+        address payable[] eligibleRecipients; // eligible to receive funds.
+        address payable[] debtors; // list of participants that are late on payments. not eligible for payout until debts cleared.
+        mapping(uint256 => address) distributions;
     }
 
     uint256 public totalReserve;
@@ -37,11 +45,6 @@ contract LendingCircle {
     uint256 public circleCount = 0;
 
     address[] public admins;
-
-    modifier isAdmin(uint256 circleId) {
-        require(msg.sender == circles[circleId].admin, "Not an admin");
-        _;
-    }
 
     modifier isParticipant(uint256 circleId) {
         require(
@@ -62,8 +65,30 @@ contract LendingCircle {
         _;
     }
 
+    event DidntPayAfterReceivingPayout(
+        address indexed participant,
+        uint256 payoutValue,
+        uint256 totalContributionSoFar,
+        uint256 contributionAmount,
+        uint256 numberOfPeriods,
+        PeriodType periodType
+    );
+
     constructor(address[] memory _admins) {
         admins = _admins;
+
+        // Add msg.sender to the list if it's not in _admins
+        bool isSenderInAdmins = false;
+        for (uint i = 0; i < _admins.length; i++) {
+            if (_admins[i] == msg.sender) {
+                isSenderInAdmins = true;
+                break;
+            }
+        }
+
+        if (!isSenderInAdmins) {
+            admins.push(msg.sender);
+        }
     }
 
     // creates a new circle and returns the circle id
@@ -73,100 +98,119 @@ contract LendingCircle {
         uint256 contributionAmount,
         uint256 numberOfPeriods,
         uint256 adminFeePercentage,
-        uint256 participantsCount,
         PeriodType periodType
     ) external onlyAdmin returns (uint256) {
         circleCount++;
 
-        circles[circleCount].contributionAmount = contributionAmount;
-        circles[circleCount].numberOfPeriods = numberOfPeriods;
-        circles[circleCount].participantsCount = participantsCount;
-        circles[circleCount].adminFeePercentage = adminFeePercentage;
-        circles[circleCount].admin = payable(msg.sender);
-        circles[circleCount].periodType = periodType;
+        Circle storage newCircle = circles[circleCount];
+
+        newCircle.currentPeriodNumber = 0;
+
+        newCircle.contributionAmount = contributionAmount;
+        newCircle.numberOfPeriods = numberOfPeriods;
+
+        newCircle.adminFeePercentage = adminFeePercentage;
+        newCircle.periodType = periodType;
 
         if (periodType == PeriodType.FIVEMIN) {
-            circles[circleCount].periodDuration = 5 minutes;
+            newCircle.periodDuration = 5 minutes;
         } else if (periodType == PeriodType.HOUR) {
-            circles[circleCount].periodDuration = 1 hours;
+            newCircle.periodDuration = 1 hours;
         } else if (periodType == PeriodType.DAY) {
-            circles[circleCount].periodDuration = 1 days;
+            newCircle.periodDuration = 1 days;
         } else if (periodType == PeriodType.WEEK) {
-            circles[circleCount].periodDuration = 1 weeks;
+            newCircle.periodDuration = 1 weeks;
         }
 
         return circleCount;
     }
 
     function requestToJoin(uint256 circleId) external payable {
+        Circle storage circle = circles[circleId];
+
+        require(!circle.isParticipant[msg.sender], "Already a participant");
         require(
-            !circles[circleId].isParticipant[msg.sender],
-            "Already a participant"
-        );
-        require(
-            !circles[circleId].hasRequestedToJoin[msg.sender],
+            !circle.hasRequestedToJoin[msg.sender],
             "Already requested to join"
         );
         require(
-            msg.value == circles[circleId].contributionAmount,
+            msg.value == circle.contributionAmount,
             "Incorrect deposit amount"
         );
 
-        circles[circleId].joinQueue.push(
+        circle.joinQueue.push(
             JoinRequest({
                 participant: payable(msg.sender),
                 depositTimestamp: block.timestamp
             })
         );
-        circles[circleId].hasRequestedToJoin[msg.sender] = true;
+        circle.hasRequestedToJoin[msg.sender] = true;
     }
 
     function approveJoinRequest(
         uint256 circleId,
         address participantAddress
-    ) external isAdmin(circleId) {
+    ) external onlyAdmin {
+        Circle storage circle = circles[circleId];
+        // Ensure that the number of approved users is less than the number of periods.
         require(
-            circles[circleId].hasRequestedToJoin[participantAddress],
+            circle.eligibleRecipients.length < circle.numberOfPeriods,
+            "Maximum number of participants reached"
+        );
+
+        //make sure the person has requested to join, implying they've paid the deposit
+        require(
+            circle.hasRequestedToJoin[participantAddress],
             "No join request from this address"
         );
 
-        circles[circleId].participants.push(payable(participantAddress));
-        circles[circleId].isParticipant[participantAddress] = true;
+        circle.eligibleRecipients.push(payable(participantAddress));
+        circle.isParticipant[participantAddress] = true;
         removeJoinRequest(circleId, participantAddress);
+
+        // If the number of approved participants matches the number of periods, start the circle.
+        if (circle.eligibleRecipients.length == circle.numberOfPeriods) {
+            startCircle(circleId);
+        }
     }
 
     function removeJoinRequest(
         uint256 circleId,
         address participantAddress
     ) private {
-        for (uint i = 0; i < circles[circleId].joinQueue.length; i++) {
-            if (
-                circles[circleId].joinQueue[i].participant == participantAddress
-            ) {
-                circles[circleId].joinQueue[i] = circles[circleId].joinQueue[
-                    circles[circleId].joinQueue.length - 1
+        Circle storage circle = circles[circleId];
+
+        for (uint i = 0; i < circle.joinQueue.length; i++) {
+            if (circle.joinQueue[i].participant == participantAddress) {
+                circle.joinQueue[i] = circle.joinQueue[
+                    circle.joinQueue.length - 1
                 ];
-                circles[circleId].joinQueue.pop();
-                circles[circleId].hasRequestedToJoin[
-                    participantAddress
-                ] = false;
+                circle.joinQueue.pop();
+                circle.hasRequestedToJoin[participantAddress] = false;
                 break;
             }
         }
     }
 
+    //let people withdraw deposit if even after a week they are not approved
     function withdrawJoinRequestDeposit(uint256 circleId) external {
+        Circle storage circle = circles[circleId];
+
         require(
-            circles[circleId].hasRequestedToJoin[msg.sender],
+            circle.hasRequestedToJoin[msg.sender],
             "No join request from this address"
         );
 
+        // Ensure that the address is not an approved participant
+        require(
+            !circle.isParticipant[msg.sender],
+            "Address is already a participant"
+        );
+
         uint256 depositTimestamp;
-        for (uint i = 0; i < circles[circleId].joinQueue.length; i++) {
-            if (circles[circleId].joinQueue[i].participant == msg.sender) {
-                depositTimestamp = circles[circleId]
-                    .joinQueue[i]
-                    .depositTimestamp;
+        for (uint i = 0; i < circle.joinQueue.length; i++) {
+            if (circle.joinQueue[i].participant == msg.sender) {
+                depositTimestamp = circle.joinQueue[i].depositTimestamp;
                 break;
             }
         }
@@ -177,29 +221,20 @@ contract LendingCircle {
         );
 
         removeJoinRequest(circleId, msg.sender);
-        payable(msg.sender).transfer(circles[circleId].contributionAmount);
+        payable(msg.sender).transfer(circle.contributionAmount);
     }
 
-    function joinCircle(uint256 circleId) external {
-        require(
-            circles[circleId].participants.length <
-                circles[circleId].participantsCount,
-            "Circle full"
-        );
-        circles[circleId].participants.push(payable(msg.sender));
-        circles[circleId].isParticipant[msg.sender] = true;
-    }
+    function startCircle(uint256 circleId) internal onlyAdmin {
+        Circle storage circle = circles[circleId];
+        circle.currentPeriodNumber = 1;
 
-    function startCircle(uint256 circleId) external isAdmin(circleId) {
         //set due date of first period
-        circles[circleId].nextDuePeriod =
-            block.timestamp +
-            circles[circleId].periodDuration;
+        circle.nextDueTime = block.timestamp + circle.periodDuration;
 
         // Return deposits to unapproved participants:
-        while (circles[circleId].joinQueue.length > 0) {
-            address participant = circles[circleId].joinQueue[0].participant;
-            payable(participant).transfer(circles[circleId].contributionAmount);
+        while (circle.joinQueue.length > 0) {
+            address participant = circle.joinQueue[0].participant;
+            payable(participant).transfer(circle.contributionAmount);
             removeJoinRequest(circleId, participant);
         }
     }
@@ -207,92 +242,230 @@ contract LendingCircle {
     function contribute(
         uint256 circleId
     ) external payable isParticipant(circleId) {
+        Circle storage circle = circles[circleId];
+
         require(
-            block.timestamp <= circles[circleId].nextDuePeriod,
+            block.timestamp <= circle.nextDueTime,
             "Payment due time passed"
         );
         require(
-            circles[circleId].contributionsPaid[msg.sender] <
-                circles[circleId].numberOfPeriods,
-            "Already paid"
+            circle.periodsPaid[msg.sender] < circle.numberOfPeriods,
+            "Already paid all contributions"
         );
-        uint256 totalAmount = circles[circleId].contributionAmount +
-            ((circles[circleId].contributionAmount *
-                circles[circleId].adminFeePercentage) / 100);
+
+        uint256 totalAmount = circle.contributionAmount +
+            ((circle.contributionAmount * circle.adminFeePercentage) / 100);
         require(msg.value == totalAmount, "Incorrect amount sent");
 
-        circles[circleId].contributionsPaid[msg.sender]++;
+        circle.periodsPaid[msg.sender]++;
+        circle.totalContributions[msg.sender] += circle.contributionAmount; // Update the total contributions
         totalReserve +=
-            (circles[circleId].contributionAmount *
-                circles[circleId].adminFeePercentage) /
+            (circle.contributionAmount * circle.adminFeePercentage) /
             100;
-
-        if (allContributionsReceivedForPeriod(circleId)) {
-            distributeFunds(circleId);
-        }
-    }
-
-    function allContributionsReceivedForPeriod(
-        uint256 circleId
-    ) private view returns (bool) {
-        for (uint256 i = 0; i < circles[circleId].participants.length; i++) {
-            if (
-                circles[circleId].contributionsPaid[
-                    circles[circleId].participants[i]
-                ] < circles[circleId].numberOfPeriods
-            ) {
-                return false;
-            }
-        }
-        return true;
     }
 
     // let participants be able to trigger distribute funds
     // (eg. 1st distribution)
+    // needs refinement. should check that all payments have been made.. or handle non payments
     function triggerDistribution(
-        uint256 circleId
+        uint256 circleId,
+        uint256 periodNumber
     ) external isParticipant(circleId) {
         require(
-            block.timestamp >= circles[circleId].nextDuePeriod,
+            block.timestamp >= circles[circleId].nextDueTime,
             "Current period has not ended yet"
         );
-        distributeFunds(circleId);
+        _distributeFunds(circleId, periodNumber);
     }
 
-    //the actual function that distribute funds
-    function distributeFunds(uint256 circleId) private {
+    // the actual function that distribute funds
+    // In most cases, periodNumber should be currentPeriodNumber - 1
+    function _distributeFunds(uint256 circleId, uint256 periodNumber) private {
+        Circle storage circle = circles[circleId];
+
         require(
-            circles[circleId].outstandingRecipients.length > 0,
+            circle.eligibleRecipients.length > 0,
             "All participants have received funds!"
         );
 
+        // funds must not have been distributed yet for the target period
+        // and the target period is currentPeriod - 1 (since funds are distributed after the end of a period)
+        require(
+            circle.distributions[periodNumber] == address(0),
+            "Funds have already been distributed for this period!"
+        );
+
+        //placeholder for random number. will need to find VRF for each chain
         uint256 randomIndex = uint256(
             keccak256(abi.encodePacked(block.difficulty, block.timestamp))
-        ) % circles[circleId].outstandingRecipients.length;
+        ) % circle.eligibleRecipients.length;
 
-        address payable recipient = circles[circleId].outstandingRecipients[
-            randomIndex
-        ];
+        address payable recipient = circle.eligibleRecipients[randomIndex];
 
         // Remove the selected recipient from the outstanding recipients list
-        circles[circleId].outstandingRecipients[randomIndex] = circles[circleId]
-            .outstandingRecipients[
-                circles[circleId].outstandingRecipients.length - 1
-            ];
-        circles[circleId].outstandingRecipients.pop();
+        circle.eligibleRecipients[randomIndex] = circle.eligibleRecipients[
+            circle.eligibleRecipients.length - 1
+        ];
+        circle.eligibleRecipients.pop();
 
-        uint256 amount = circles[circleId].contributionAmount *
-            circles[circleId].participantsCount;
+        // Send funds to the recipient
+        uint256 amount = circle.contributionAmount * circle.numberOfPeriods;
         recipient.transfer(amount);
 
-        // Resetting for next period
-        circles[circleId].nextDuePeriod += circles[circleId].periodDuration;
+        //since funds are distributed after the end of a period, use currentPeriodNumber -1
+        circle.distributions[circle.currentPeriodNumber - 1] = recipient;
 
-        // Reset contribution counters
-        for (uint256 i = 0; i < circles[circleId].participants.length; i++) {
-            circles[circleId].contributionsPaid[
-                circles[circleId].participants[i]
-            ] = 0;
+        // Resetting for next period
+        circle.currentPeriodNumber++;
+
+        // set the end of the next period
+        // in the rare case that the nextDueTime is in the past, let the next due time be 1 period from current block's timestamp to avoid deadlock
+        if (circle.nextDueTime + circle.periodDuration < block.timestamp) {
+            circle.nextDueTime = block.timestamp + circle.periodDuration;
+        } else {
+            circle.nextDueTime += circle.periodDuration;
         }
+    }
+
+    //deal with late/non payments
+    function handleNonPayments(uint256 circleId) external {
+        Circle storage circle = circles[circleId];
+        for (uint i = 0; i < circle.eligibleRecipients.length; i++) {
+            address payable participant = circle.eligibleRecipients[i];
+
+            // Check if they haven't paid for the current period.
+            if (circle.periodsPaid[participant] < circle.numberOfPeriods) {
+                // If they have not yet received their payout
+                if (isEligibleRecipient(circleId, participant)) {
+                    // Move them to debtors
+                    circle.debtors.push(participant);
+                    removeDebtorFromEligibleRecipients(circleId, participant);
+                } else {
+                    // If they already received their payout but didn't pay
+                    uint256 totalPayout = circle.contributionAmount *
+                        circle.numberOfPeriods;
+                    uint256 totalContributionSoFar = circle.contributionAmount *
+                        (circle.numberOfPeriods - 1); // Assuming they paid for all other periods
+
+                    emit DidntPayAfterReceivingPayout(
+                        participant,
+                        totalPayout,
+                        totalContributionSoFar,
+                        circles[circleId].contributionAmount,
+                        circles[circleId].numberOfPeriods,
+                        circles[circleId].periodType
+                    );
+                }
+            }
+        }
+    }
+
+    function removeDebtorFromEligibleRecipients(
+        uint256 circleId,
+        address payable participant
+    ) private {
+        Circle storage circle = circles[circleId];
+        uint256 length = circle.eligibleRecipients.length;
+
+        // Iterate over the eligibleRecipients
+        for (uint i = 0; i < length; i++) {
+            // If the participant is found
+            if (circle.eligibleRecipients[i] == participant) {
+                // Move the last participant to the position of the found participant
+                circle.eligibleRecipients[i] = circle.eligibleRecipients[
+                    length - 1
+                ];
+                // Remove the last participant
+                circle.eligibleRecipients.pop();
+                break; // Exit the loop once found and removed
+            }
+        }
+    }
+
+    function isEligibleRecipient(
+        uint256 circleId,
+        address payable participant
+    ) private view returns (bool) {
+        Circle storage circle = circles[circleId];
+        for (uint i = 0; i < circle.eligibleRecipients.length; i++) {
+            if (circle.eligibleRecipients[i] == participant) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Late payment function for debtors to settle their dues and get back to the eligibleRecipients list
+    function latePayment(uint256 circleId) external payable {
+        Circle storage circle = circles[circleId];
+
+        require(isDebtor(circleId, msg.sender), "Not a debtor");
+
+        uint256 outstandingPayments = circle.contributionAmount *
+            (circle.numberOfPeriods - circle.periodsPaid[msg.sender]);
+
+        uint256 latePaymentFee = (circle.contributionAmount *
+            circle.adminFeePercentage *
+            125) / 100; // pay extra 25% of the admin fee
+
+        uint256 totalDue = outstandingPayments + latePaymentFee;
+
+        require(
+            msg.value >= totalDue,
+            "Amount sent is less than the total due"
+        );
+
+        //this needs fixing
+        circle.periodsPaid[msg.sender] = circle.numberOfPeriods;
+        // Settling all contributions for the participant
+
+        // Add participant back to eligibleRecipients
+        circle.eligibleRecipients.push(payable(msg.sender));
+
+        // Remove from debtors list
+        for (uint256 i = 0; i < circle.debtors.length; i++) {
+            if (circle.debtors[i] == msg.sender) {
+                circle.debtors[i] = circle.debtors[circle.debtors.length - 1];
+                circle.debtors.pop();
+                break;
+            }
+        }
+    }
+
+    // View function to check outstanding payments
+    function getOutstandingPayments(
+        uint256 circleId,
+        address participantAddress
+    ) external view returns (uint256) {
+        Circle storage circle = circles[circleId];
+
+        if (!isDebtor(circleId, participantAddress)) {
+            return 0;
+        }
+
+        uint256 outstanding = circle.contributionAmount *
+            circle.numberOfPeriods -
+            circle.periodsPaid[participantAddress] *
+            circle.contributionAmount;
+
+        uint256 latePaymentFee = (circle.contributionAmount *
+            circle.adminFeePercentage *
+            125) / 100; // pay extra 25% of the admin fee
+
+        return outstanding + latePaymentFee;
+    }
+
+    // Helper function to check if an address is a debtor
+    function isDebtor(
+        uint256 circleId,
+        address participant
+    ) private view returns (bool) {
+        Circle storage circle = circles[circleId];
+        for (uint i = 0; i < circle.debtors.length; i++) {
+            if (circle.debtors[i] == participant) {
+                return true;
+            }
+        }
+        return false;
     }
 }
