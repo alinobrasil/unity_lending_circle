@@ -9,14 +9,10 @@ contract LendingCircle {
         WEEK
     }
 
-    struct JoinRequest {
-        address payable participant;
-        uint256 depositTimestamp;
-    }
-
     struct Circle {
         // terms of the lending circle
         uint256 id; //uid for a lending circle
+        string name;
         uint256 contributionAmount;
         PeriodType periodType;
         uint256 periodDuration; // in seconds
@@ -24,21 +20,23 @@ contract LendingCircle {
         uint256 adminFeePercentage;
         // ----------------------------------------
         // state of the lending circle
-        uint256 currentPeriodNumber; // <-- Added this field
+        uint256 currentPeriodNumber;
         uint256 nextDueTime; //timestamp of next period due datetime
         // ----------------------------------------
         // state of applicants requesting to join circle
         mapping(address => bool) hasRequestedToJoin;
-        JoinRequest[] joinQueue; //list of applicants. only admins can approve which can move into participants list
+        address payable[] joinQueue; //list of applicants. only admins can approve which can move into participants list
         // ----------------------------------------
         //state of participants
-        mapping(address => bool) isParticipant; // approved participant, regardless of eligibilty to receive payout
+        // mapping(address => bool) isParticipant; // this should be accessible from contract level, not struct
+
         mapping(address => uint256) periodsPaid;
-        // mapping(address => uint256) totalContributions; //unneessary field
         address payable[] eligibleRecipients; // eligible to receive funds.
         address payable[] debtors; // list of participants that are late on payments. not eligible for payout until debts cleared.
         mapping(uint256 => address) distributions;
     }
+
+    mapping(address => uint256[]) public participantCircleIds;
 
     uint256 public totalReserve;
     mapping(uint256 => Circle) public circles;
@@ -46,13 +44,19 @@ contract LendingCircle {
 
     address[] public admins;
 
+    //check that msg.sender is an approved participant
     modifier isParticipant(uint256 circleId) {
+        require(isUserInCircle(msg.sender, circleId), "Not a participant");
+
+        //see if they're in queue
         require(
-            circles[circleId].isParticipant[msg.sender],
-            "Not a participant"
+            !isPendingApproval(msg.sender, circleId),
+            "Still pending approval"
         );
+
         _;
     }
+
     modifier onlyAdmin() {
         bool admin_status = false;
         for (uint i = 0; i < admins.length; i++) {
@@ -86,6 +90,7 @@ contract LendingCircle {
 
     event CircleCreated(
         uint256 indexed circleId,
+        string name,
         address creator,
         uint256 contributionAmount,
         PeriodType periodType,
@@ -93,11 +98,7 @@ contract LendingCircle {
         uint256 adminFeePercentage
     );
 
-    event RequestedToJoin(
-        uint256 indexed circleId,
-        address indexed requestor,
-        uint256 depositTimestamp
-    );
+    event RequestedToJoin(uint256 indexed circleId, address indexed requestor);
 
     event ApprovedJoinRequest(
         uint256 indexed circleId,
@@ -138,6 +139,36 @@ contract LendingCircle {
         uint256 adminFee
     );
 
+    //checks that user is in circle. could be pending, eligible or debtor
+    function isUserInCircle(
+        address user,
+        uint256 circleId
+    ) private view returns (bool) {
+        uint256[] memory circleIds = participantCircleIds[user];
+        for (uint256 i = 0; i < circleIds.length; i++) {
+            if (circleIds[i] == circleId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // checks that user is in queue to join circle. If they're in circle but not pending, then they've been approved already. either eligible or debtor.
+    function isPendingApproval(
+        address user,
+        uint256 circleId
+    ) private view returns (bool) {
+        // Circle storage circle = circles[circleId];
+        // for (uint256 i = 0; i < circle.joinQueue.length; i++) {
+        //     if (circle.joinQueue[i] == user) {
+        //         return true;
+        //     }
+        // }
+        // return false;
+        Circle storage circle = circles[circleId];
+        return circle.hasRequestedToJoin[user];
+    }
+
     // Constructor. Set a list of admin addresses. deployer will be added by default.
     constructor(address[] memory _admins) {
         admins = _admins;
@@ -160,17 +191,18 @@ contract LendingCircle {
     // admin sets the rules for the circle
     // (eg. contribution amount, number of periods, admin fee percentage, participants count)
     function createCircle(
+        string memory name,
         uint256 contributionAmount,
         uint256 numberOfPeriods,
         uint256 adminFeePercentage,
         PeriodType periodType
     ) external onlyAdmin returns (uint256) {
+        Circle storage newCircle = circles[circleCount];
+        newCircle.id = circleCount;
         circleCount++;
 
-        Circle storage newCircle = circles[circleCount];
-
-        newCircle.currentPeriodNumber = 0;
-
+        newCircle.name = name;
+        // newCircle.currentPeriodNumber = 0;
         newCircle.contributionAmount = contributionAmount;
         newCircle.numberOfPeriods = numberOfPeriods;
 
@@ -189,6 +221,7 @@ contract LendingCircle {
 
         emit CircleCreated(
             circleCount,
+            name,
             msg.sender,
             contributionAmount,
             periodType,
@@ -203,7 +236,8 @@ contract LendingCircle {
     function requestToJoin(uint256 circleId) external payable {
         Circle storage circle = circles[circleId];
 
-        require(!circle.isParticipant[msg.sender], "Already a participant");
+        require(!isUserInCircle(msg.sender, circleId), "Already a participant");
+
         require(
             !circle.hasRequestedToJoin[msg.sender],
             "Already requested to join"
@@ -214,15 +248,13 @@ contract LendingCircle {
 
         require(msg.value == totalAmount, "Incorrect deposit amount");
 
-        circle.joinQueue.push(
-            JoinRequest({
-                participant: payable(msg.sender),
-                depositTimestamp: block.timestamp
-            })
-        );
+        circle.joinQueue.push(payable(msg.sender));
         circle.hasRequestedToJoin[msg.sender] = true;
 
-        emit RequestedToJoin(circleId, msg.sender, block.timestamp);
+        // user is now part of circle as a pending participant. not officially approved yet
+        participantCircleIds[msg.sender].push(circleId);
+
+        emit RequestedToJoin(circleId, msg.sender);
     }
 
     function approveJoinRequest(
@@ -243,7 +275,8 @@ contract LendingCircle {
         );
 
         circle.eligibleRecipients.push(payable(participantAddress));
-        circle.isParticipant[participantAddress] = true;
+        // circle.isParticipant[participantAddress] = true;
+
         removeJoinRequest(circleId, participantAddress);
 
         // If the number of approved participants matches the number of periods, start the circle.
@@ -261,7 +294,7 @@ contract LendingCircle {
         Circle storage circle = circles[circleId];
 
         for (uint i = 0; i < circle.joinQueue.length; i++) {
-            if (circle.joinQueue[i].participant == participantAddress) {
+            if (circle.joinQueue[i] == participantAddress) {
                 circle.joinQueue[i] = circle.joinQueue[
                     circle.joinQueue.length - 1
                 ];
@@ -270,9 +303,23 @@ contract LendingCircle {
                 break;
             }
         }
+
+        //remove from participantCircleIds
+        uint256[] storage participantCircles = participantCircleIds[
+            participantAddress
+        ];
+        for (uint i = 0; i < participantCircles.length; i++) {
+            if (participantCircles[i] == circleId) {
+                participantCircles[i] = participantCircles[
+                    participantCircles.length - 1
+                ];
+                participantCircles.pop();
+                break;
+            }
+        }
     }
 
-    //let people withdraw deposit if even after a week they are not approved
+    //let people withdraw deposit as long as they're not approved yet
     function withdrawJoinRequestDeposit(uint256 circleId) external {
         Circle storage circle = circles[circleId];
 
@@ -283,21 +330,8 @@ contract LendingCircle {
 
         // Ensure that the address is not an approved participant
         require(
-            !circle.isParticipant[msg.sender],
+            isPendingApproval(msg.sender, circleId),
             "Address is already a participant"
-        );
-
-        uint256 depositTimestamp;
-        for (uint i = 0; i < circle.joinQueue.length; i++) {
-            if (circle.joinQueue[i].participant == msg.sender) {
-                depositTimestamp = circle.joinQueue[i].depositTimestamp;
-                break;
-            }
-        }
-
-        require(
-            block.timestamp >= depositTimestamp + 1 weeks,
-            "Withdraw not allowed yet"
         );
 
         removeJoinRequest(circleId, msg.sender);
@@ -324,7 +358,7 @@ contract LendingCircle {
 
         // Return deposits to unapproved participants:
         while (circle.joinQueue.length > 0) {
-            address participant = circle.joinQueue[0].participant;
+            address participant = circle.joinQueue[0];
             payable(participant).transfer(circle.contributionAmount);
             removeJoinRequest(circleId, participant);
         }
