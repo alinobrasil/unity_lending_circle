@@ -58,14 +58,7 @@ contract LendingCircle {
     }
 
     modifier onlyAdmin() {
-        bool admin_status = false;
-        for (uint i = 0; i < admins.length; i++) {
-            if (msg.sender == admins[i]) {
-                admin_status = true;
-                break;
-            }
-        }
-        require(admin_status, "Not an admin");
+        require(_isAdmin(msg.sender), "Not an admin");
         _;
     }
 
@@ -139,6 +132,15 @@ contract LendingCircle {
         uint256 adminFee
     );
 
+    function _isAdmin(address user) private view returns (bool) {
+        for (uint i = 0; i < admins.length; i++) {
+            if (user == admins[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     //checks that user is in circle. could be pending, eligible or debtor
     function isUserInCircle(
         address user,
@@ -202,7 +204,7 @@ contract LendingCircle {
         circleCount++;
 
         newCircle.name = name;
-        // newCircle.currentPeriodNumber = 0;
+        newCircle.currentPeriodNumber = 0;
         newCircle.contributionAmount = contributionAmount;
         newCircle.numberOfPeriods = numberOfPeriods;
 
@@ -237,6 +239,8 @@ contract LendingCircle {
         Circle storage circle = circles[circleId];
 
         require(!isUserInCircle(msg.sender, circleId), "Already a participant");
+
+        require(!_isAdmin(msg.sender), "Admins cannot join circles");
 
         require(
             !circle.hasRequestedToJoin[msg.sender],
@@ -404,7 +408,15 @@ contract LendingCircle {
     function triggerDistribution(
         uint256 circleId,
         uint256 periodNumber
-    ) external isParticipant(circleId) {
+    ) external {
+        bool isApprovedParticipant = isUserInCircle(msg.sender, circleId) &&
+            !isPendingApproval(msg.sender, circleId);
+
+        bool isAdmin = _isAdmin(msg.sender);
+
+        //only admin or participants can do this. not any random person
+        require(isApprovedParticipant || isAdmin, "Not authorized to call");
+
         require(
             block.timestamp >= circles[circleId].nextDueTime,
             "Current period has not ended yet"
