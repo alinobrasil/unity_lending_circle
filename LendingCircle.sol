@@ -642,4 +642,125 @@ contract LendingCircle {
         }
         return false;
     }
+
+    // getter functions for viewing
+    function getCircleDetails(
+        uint256 circleId
+    )
+        external
+        view
+        returns (
+            uint256 id,
+            string memory name,
+            uint256 contributionAmount,
+            PeriodType periodType,
+            uint256 periodDuration,
+            uint256 numberOfPeriods,
+            uint256 adminFeePercentage,
+            uint256 currentPeriodNumber,
+            uint256 nextDueTime
+        )
+    {
+        Circle storage circle = circles[circleId];
+        return (
+            circle.id,
+            circle.name,
+            circle.contributionAmount,
+            circle.periodType,
+            circle.periodDuration,
+            circle.numberOfPeriods,
+            circle.adminFeePercentage,
+            circle.currentPeriodNumber,
+            circle.nextDueTime
+        );
+    }
+
+    function getJoinQueue(
+        uint256 circleId
+    ) external view returns (address payable[] memory) {
+        return circles[circleId].joinQueue;
+    }
+
+    function getEligibleRecipients(
+        uint256 circleId
+    ) external view returns (address payable[] memory) {
+        return circles[circleId].eligibleRecipients;
+    }
+
+    function getDebtors(
+        uint256 circleId
+    ) external view returns (address payable[] memory) {
+        return circles[circleId].debtors;
+    }
+
+    function getDistributions(
+        uint256 circleId
+    ) external view returns (address[] memory) {
+        Circle storage circle = circles[circleId];
+        address[] memory distributionAddresses = new address[](
+            circle.currentPeriodNumber - 1
+        );
+
+        for (uint256 i = 1; i < circle.currentPeriodNumber; i++) {
+            distributionAddresses[i - 1] = circle.distributions[i];
+        }
+
+        return distributionAddresses;
+    }
+
+    //simple credit report on a user
+    function getUserCircleStats(
+        address user
+    )
+        external
+        view
+        returns (
+            uint256 totalCirclesCompleted,
+            uint256 totalEligibleValue,
+            uint256 totalDebtorValue
+        )
+    {
+        uint256[] memory userCircles = participantCircleIds[user];
+
+        uint256 completedCount = 0;
+        uint256 eligibleValueAggregated = 0;
+        uint256 debtorValueAggregated = 0;
+
+        for (uint256 i = 0; i < userCircles.length; i++) {
+            Circle storage circle = circles[userCircles[i]];
+
+            // Check if circle is completed
+            if (circle.currentPeriodNumber > circle.numberOfPeriods) {
+                completedCount++;
+                uint256 circleValue = circle.contributionAmount *
+                    circle.numberOfPeriods;
+
+                bool isEligible = false;
+                for (uint256 j = 0; j < circle.eligibleRecipients.length; j++) {
+                    if (circle.eligibleRecipients[j] == user) {
+                        isEligible = true;
+                        break;
+                    }
+                }
+
+                bool userIsDebtor = false;
+                for (uint256 k = 0; k < circle.debtors.length; k++) {
+                    if (circle.debtors[k] == user) {
+                        userIsDebtor = true;
+                        break;
+                    }
+                }
+
+                if (isEligible) {
+                    eligibleValueAggregated += circleValue;
+                }
+
+                if (userIsDebtor) {
+                    debtorValueAggregated += circleValue;
+                }
+            }
+        }
+
+        return (completedCount, eligibleValueAggregated, debtorValueAggregated);
+    }
 }
