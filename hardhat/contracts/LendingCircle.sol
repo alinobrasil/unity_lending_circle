@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "hardhat/console.sol";
+
 contract LendingCircle {
     enum PeriodType {
         FIVEMIN,
@@ -22,6 +24,7 @@ contract LendingCircle {
         // state of the lending circle
         uint256 currentPeriodNumber;
         uint256 nextDueTime; //timestamp of next period due datetime
+        uint256 contributorsThisPeriod;
         // ----------------------------------------
         // state of applicants requesting to join circle
         mapping(address => bool) hasRequestedToJoin;
@@ -91,6 +94,8 @@ contract LendingCircle {
         uint256 adminFeePercentage
     );
 
+    event CircleStarted(uint256 indexed circleId);
+
     event RequestedToJoin(uint256 indexed circleId, address indexed requestor);
 
     event ApprovedJoinRequest(
@@ -147,6 +152,8 @@ contract LendingCircle {
         uint256 circleId
     ) private view returns (bool) {
         uint256[] memory circleIds = participantCircleIds[user];
+
+        // console.log("circleIds.length: %s", circleIds.length);
         for (uint256 i = 0; i < circleIds.length; i++) {
             if (circleIds[i] == circleId) {
                 return true;
@@ -222,7 +229,7 @@ contract LendingCircle {
         }
 
         emit CircleCreated(
-            circleCount,
+            circleCount - 1,
             name,
             msg.sender,
             contributionAmount,
@@ -247,16 +254,31 @@ contract LendingCircle {
             "Already requested to join"
         );
 
-        uint256 totalAmount = circle.contributionAmount *
-            (1 + circle.adminFeePercentage / 100);
+        uint256 totalAmount = (circle.contributionAmount *
+            (100 + circle.adminFeePercentage)) / 100;
 
-        require(msg.value == totalAmount, "Incorrect deposit amount");
+        // console.log("totalAmount required: %s", totalAmount);
+        // console.log(
+        //     "circle admin fee percentage: %s",
+        //     circle.adminFeePercentage
+        // );
+
+        require(msg.value == totalAmount, "Incorrect deposit amount yo");
 
         circle.joinQueue.push(payable(msg.sender));
         circle.hasRequestedToJoin[msg.sender] = true;
 
         // user is now part of circle as a pending participant. not officially approved yet
         participantCircleIds[msg.sender].push(circleId);
+        // console.log(
+        //     "participantCircleIds[msg.sender].length: %s",
+        //     participantCircleIds[msg.sender].length
+        // );
+
+        // console.log(
+        //     "participantCircleIds[msg.sender]: %s",
+        //     participantCircleIds[msg.sender][0]
+        // );
 
         emit RequestedToJoin(circleId, msg.sender);
     }
@@ -283,9 +305,14 @@ contract LendingCircle {
 
         removeJoinRequest(circleId, participantAddress);
 
+        // console.log(
+        //     "circle.eligibleRecipients.length: %s",
+        //     circle.eligibleRecipients.length
+        // );
+
         // If the number of approved participants matches the number of periods, start the circle.
         if (circle.eligibleRecipients.length == circle.numberOfPeriods) {
-            _startCircle(circleId);
+            startCircle(circleId);
         }
 
         emit ApprovedJoinRequest(circleId, participantAddress);
@@ -304,20 +331,6 @@ contract LendingCircle {
                 ];
                 circle.joinQueue.pop();
                 circle.hasRequestedToJoin[participantAddress] = false;
-                break;
-            }
-        }
-
-        //remove from participantCircleIds
-        uint256[] storage participantCircles = participantCircleIds[
-            participantAddress
-        ];
-        for (uint i = 0; i < participantCircles.length; i++) {
-            if (participantCircles[i] == circleId) {
-                participantCircles[i] = participantCircles[
-                    participantCircles.length - 1
-                ];
-                participantCircles.pop();
                 break;
             }
         }
@@ -340,6 +353,8 @@ contract LendingCircle {
 
         removeJoinRequest(circleId, msg.sender);
 
+        _removeFromParticipantCircles(msg.sender, circleId);
+
         //refund deposit (+ fee) for unapproved applicants
         uint256 totalAmount = circle.contributionAmount *
             (1 + circle.adminFeePercentage / 100);
@@ -352,8 +367,27 @@ contract LendingCircle {
         );
     }
 
+    function _removeFromParticipantCircles(
+        address participantAddress,
+        uint256 circleId
+    ) private {
+        uint256[] storage participantCircles = participantCircleIds[
+            participantAddress
+        ];
+        for (uint i = 0; i < participantCircles.length; i++) {
+            if (participantCircles[i] == circleId) {
+                participantCircles[i] = participantCircles[
+                    participantCircles.length - 1
+                ];
+                participantCircles.pop();
+                break;
+            }
+        }
+    }
+
     // set to internal since the circle will only start when circle is full (reaches number of periods)
-    function _startCircle(uint256 circleId) internal onlyAdmin {
+    // which is when the last participant is approved
+    function startCircle(uint256 circleId) internal onlyAdmin {
         Circle storage circle = circles[circleId];
         circle.currentPeriodNumber = 1;
 
@@ -366,6 +400,8 @@ contract LendingCircle {
             payable(participant).transfer(circle.contributionAmount);
             removeJoinRequest(circleId, participant);
         }
+
+        emit CircleStarted(circleId);
     }
 
     function contribute(
@@ -382,8 +418,11 @@ contract LendingCircle {
             "Already paid all contributions"
         );
 
-        uint256 totalAmount = circle.contributionAmount *
-            (1 + circle.adminFeePercentage / 100);
+        uint256 totalAmount = (circle.contributionAmount *
+            (100 + circle.adminFeePercentage)) / 100;
+
+        // console.log("totalAmount: %s", totalAmount);
+
         require(msg.value == totalAmount, "Incorrect amount sent");
 
         circle.periodsPaid[msg.sender]++;
@@ -400,6 +439,8 @@ contract LendingCircle {
             circle.contributionAmount,
             (circle.contributionAmount * circle.adminFeePercentage) / 100
         );
+
+        circle.contributorsThisPeriod++;
     }
 
     // let participants be able to trigger distribute funds
@@ -417,10 +458,6 @@ contract LendingCircle {
         //only admin or participants can do this. not any random person
         require(isApprovedParticipant || isAdmin, "Not authorized to call");
 
-        require(
-            block.timestamp >= circles[circleId].nextDueTime,
-            "Current period has not ended yet"
-        );
         _distributeFunds(circleId, periodNumber);
     }
 
@@ -428,6 +465,16 @@ contract LendingCircle {
     // In most cases, periodNumber should be currentPeriodNumber - 1
     function _distributeFunds(uint256 circleId, uint256 periodNumber) private {
         Circle storage circle = circles[circleId];
+
+        // console.log(
+        //     "circle.currentPeriodNumber: %s",
+        //     circle.currentPeriodNumber
+        // );
+
+        require(
+            block.timestamp >= circles[circleId].nextDueTime,
+            "Current period has not ended yet"
+        );
 
         require(
             circle.eligibleRecipients.length > 0,
@@ -440,6 +487,9 @@ contract LendingCircle {
             circle.distributions[periodNumber] == address(0),
             "Funds have already been distributed for this period!"
         );
+
+        //TODO: Remove from eligible list if they have not paid
+        //check if everyone paid
 
         //placeholder for random number. will need to find VRF for each chain
         uint256 randomIndex = uint256(
@@ -456,13 +506,27 @@ contract LendingCircle {
 
         // Send funds to the recipient
         uint256 amount = circle.contributionAmount * circle.numberOfPeriods;
+
+        require(
+            address(this).balance >= amount,
+            "Contract balance is insufficient"
+        );
+
         recipient.transfer(amount);
 
-        //since funds are distributed after the end of a period, use currentPeriodNumber -1
-        circle.distributions[circle.currentPeriodNumber - 1] = recipient;
+        // track who received funds for which period
+        circle.distributions[circle.currentPeriodNumber] = recipient;
+
+        emit DistributedFunds(
+            circleId,
+            circle.currentPeriodNumber,
+            recipient,
+            amount
+        );
 
         // Resetting for next period
         circle.currentPeriodNumber++;
+        circle.contributorsThisPeriod = 0;
 
         // set the end of the next period
         // in the rare case that the nextDueTime is in the past, let the next due time be 1 period from current block's timestamp to avoid deadlock
@@ -480,8 +544,55 @@ contract LendingCircle {
                 circle.adminFeePercentage
             );
         }
+    }
 
-        emit DistributedFunds(circleId, periodNumber, recipient, amount);
+    function checkEveryonePaid(uint256 circleId) public {
+        Circle storage circle = circles[circleId];
+
+        require(
+            block.timestamp >= circle.nextDueTime,
+            "Current period has not ended yet"
+        );
+
+        for (uint i = 0; i < circle.eligibleRecipients.length; i++) {
+            address payable participant = circle.eligibleRecipients[i];
+
+            // Check if they haven't paid for the current period.
+            if (
+                circle.periodsPaid[participant] < circle.currentPeriodNumber - 1
+            ) {
+                // If they have not yet received their payout
+                if (isEligibleRecipient(circleId, participant)) {
+                    // Move them to debtors
+                    circle.debtors.push(participant);
+                    removeDebtorFromEligibleRecipients(circleId, participant);
+
+                    emit LateOnContribution(
+                        circleId,
+                        participant,
+                        circle.periodsPaid[participant] *
+                            circle.contributionAmount, //this shows how much was paid so far
+                        circle.currentPeriodNumber,
+                        circle.contributionAmount
+                    );
+                } else {
+                    // If they already received their payout but didn't pay
+                    uint256 totalPayout = circle.contributionAmount *
+                        circle.numberOfPeriods;
+                    uint256 totalContributionSoFar = circle.contributionAmount *
+                        (circle.numberOfPeriods - 1); // Assuming they paid for all other periods
+
+                    emit DidntPayAfterReceivingPayout(
+                        participant,
+                        totalPayout,
+                        totalContributionSoFar,
+                        circles[circleId].contributionAmount,
+                        circles[circleId].numberOfPeriods,
+                        circles[circleId].periodType
+                    );
+                }
+            }
+        }
     }
 
     //deal with late/non payments
@@ -643,7 +754,7 @@ contract LendingCircle {
         return false;
     }
 
-    // getter functions for viewing
+    // getter functions for viewing -------------------------------------------------------------------------
     function getCircleDetails(
         uint256 circleId
     )
@@ -658,7 +769,8 @@ contract LendingCircle {
             uint256 numberOfPeriods,
             uint256 adminFeePercentage,
             uint256 currentPeriodNumber,
-            uint256 nextDueTime
+            uint256 nextDueTime,
+            uint256 contributorsThisPeriod
         )
     {
         Circle storage circle = circles[circleId];
@@ -671,8 +783,15 @@ contract LendingCircle {
             circle.numberOfPeriods,
             circle.adminFeePercentage,
             circle.currentPeriodNumber,
-            circle.nextDueTime
+            circle.nextDueTime,
+            circle.contributorsThisPeriod
         );
+    }
+
+    function getUserCircleIds(
+        address userAddress
+    ) public view returns (uint256[] memory) {
+        return participantCircleIds[userAddress];
     }
 
     function getJoinQueue(
@@ -691,6 +810,14 @@ contract LendingCircle {
         uint256 circleId
     ) external view returns (address payable[] memory) {
         return circles[circleId].debtors;
+    }
+
+    function getPeriodsPaid(
+        uint256 circleId,
+        address participant
+    ) public view returns (uint256) {
+        Circle storage circle = circles[circleId];
+        return circle.periodsPaid[participant];
     }
 
     function getDistributions(
@@ -763,4 +890,6 @@ contract LendingCircle {
 
         return (completedCount, eligibleValueAggregated, debtorValueAggregated);
     }
+
+    receive() external payable {}
 }
