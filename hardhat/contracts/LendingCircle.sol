@@ -477,7 +477,7 @@ contract LendingCircle {
 
         require(
             circle.eligibleRecipients.length > 0,
-            "All participants have received funds!"
+            "Nobody eligible to receive funds"
         );
 
         // funds must not have been distributed yet for the target period
@@ -645,8 +645,8 @@ contract LendingCircle {
             (circle.currentPeriodNumber -
                 1 -
                 circle.periodsPaid[debtorAddress]);
-        console.log("currentPeriodNumber: %s", circle.currentPeriodNumber);
-        console.log("periods paid by 3: %s", circle.periodsPaid[debtorAddress]);
+        // console.log("currentPeriodNumber: %s", circle.currentPeriodNumber);
+        // console.log("periods paid by 3: %s", circle.periodsPaid[debtorAddress]);
 
         uint256 fees = ((outstandingPrincipal * circle.adminFeePercentage) *
             125) / 10000; // pay extra 25% of the admin fee
@@ -668,11 +668,13 @@ contract LendingCircle {
         uint256 outstandingPrincipal = circle.contributionAmount *
             (circle.currentPeriodNumber - 1 - circle.periodsPaid[msg.sender]);
 
-        uint256 fees = (outstandingPrincipal *
-            circle.adminFeePercentage *
-            125) / 100; // pay extra 25% of the admin fee
+        uint256 fees = ((outstandingPrincipal * circle.adminFeePercentage) *
+            125) / 10000; // pay extra 25% of the admin fee
 
         uint256 totalDue = outstandingPrincipal + fees;
+
+        // console.log("msg value: %s", msg.value);
+        // console.log("totalDue: %s", totalDue);
 
         require(
             msg.value == totalDue,
@@ -717,7 +719,7 @@ contract LendingCircle {
     function isDebtor(
         uint256 circleId,
         address participant
-    ) private view returns (bool) {
+    ) public view returns (bool) {
         Circle storage circle = circles[circleId];
         for (uint i = 0; i < circle.debtors.length; i++) {
             if (circle.debtors[i] == participant) {
