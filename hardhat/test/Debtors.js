@@ -161,16 +161,15 @@ it("should enable users to contribute to circle", async function () {
     
 });
 
-  it("Distribute when 2 of 3 have paid. Should work, but eligible list should not include user3.", async function () {
+  it("Distribute when 2 of 3 have paid. Should work, but eligible list should not include user#3.", async function () {
     //only account 1 has paid
 
     //show eligible list
-    const eligible = await lendingCircle.getEligibleRecipients(0);
-    console.log("eligible list:")
+    let eligible = await lendingCircle.getEligibleRecipients(0);
+    console.log("Initial eligible list:")
     console.log(eligible)
 
-    //0x90F79bf6EB2c4f870365E785982E1f101E93b906 should not be on the list
-
+    
     // get some money ready in contract
     await accounts[0].sendTransaction({
       to: lendingCircle.address,
@@ -185,15 +184,29 @@ it("should enable users to contribute to circle", async function () {
     const timetravel = (await time.latest()) + 301;
     time.increaseTo(timetravel);
 
+
+    //this function is included in distribute funds.. but running it first to verify what 
+    // eligiblelist and debtor list look like
+    lendingCircle.checkEveryonePaid(0);
+    eligible = await lendingCircle.getEligibleRecipients(0);
+    console.log("Updated eligible list:")
+    console.log(eligible)
+
+    // distribute funds -------------------------------------
     const distributeTx = await lendingCircle
       .connect(accounts[2])
       .triggerDistribution(0, 2);
+    
+    const targetAddress = accounts[3].address;
+    // console.log("target address is in eligible list: ", eligible.includes(targetAddress))
+    expect(eligible.includes(targetAddress)).to.equal(false);
+      
     
     await expect(distributeTx).to.emit(lendingCircle, "DistributedFunds")
 
 
 
-    receipt = await distributeTx.wait();
+    const receipt = await distributeTx.wait();
     
     //should show an event, representing successful distribution
     await expect(distributeTx).to
@@ -203,52 +216,73 @@ it("should enable users to contribute to circle", async function () {
     const event = receipt.events?.find(e => e.event === "DistributedFunds")
     console.log("winner: ",event.args.recipient);
 
+    console.log("\nevents from distributeFunds:")
+
+    for (const e of receipt.events) {
+      console.log(e.event);
+    }
+    
+    console.log("\n");
+
+    const debtors = await lendingCircle.getDebtors(0);
+    console.log("debtors:")
+    console.log(debtors)
+
+
+
+
+    eligible = await lendingCircle.getEligibleRecipients(0);
+    console.log("Updated eligible list:")
+    console.log(eligible)
+
+
+
+ 
 
   });
 
-  // it("should distribute to last person", async function () {
+  it('should allow debtor to be eligible again after paying', async function() {
+      let circleInfo = await lendingCircle.getCircleDetails(0);
+      console.log()
+      console.log("current period: " ,circleInfo[7].toString())
+      console.log("contributors this period: " ,circleInfo[9].toString())
 
-  //   //just loading up with money. if there's money, then everyone getes paid
+      const contribute1 = await lendingCircle
+        .connect(accounts[1])
+        .contribute(0, {value: ethers.utils.parseEther("1.05")});
+      
+      const contribute2 = await lendingCircle
+      .connect(accounts[2])
+      .contribute(0, {value: ethers.utils.parseEther("1.05")});
 
-  //   await accounts[0].sendTransaction({
-  //     to: lendingCircle.address,
-  //     value: ethers.utils.parseEther("3"),
-  //   });
+      circleInfo = await lendingCircle.getCircleDetails(0);
+      console.log()
+      console.log("current period: " ,circleInfo[7].toString())
+      console.log("contributors this period: " ,circleInfo[9].toString())
 
-  //   const timetravel = (await time.latest()) + 301;
-  //   time.increaseTo(timetravel);
+      let debtors = await lendingCircle.getDebtors(0);
+      console.log("\ndebtors:")
+      console.log(debtors)
 
-  //   //show eligible list
-  //   const eligible = await lendingCircle.getEligibleRecipients(0);
-  //   console.log("eligible list:")
-  //   console.log(eligible)
-    
-
-  //   const distributeTx = await lendingCircle
-  //     .connect(accounts[0])
-  //     .triggerDistribution(0, 3);
-    
-  //   await expect(distributeTx).to.emit(lendingCircle, "DistributedFunds")
-
-
-
-  //   receipt = await distributeTx.wait();
-    
-  //   //should show an event, representing successful distribution
-  //   await expect(distributeTx).to
-  //     .emit(lendingCircle, "DistributedFunds")
-  //     // .withArgs(0, 1, winner, ethers.parseEther("1"));
-
-  //   const event = receipt.events?.find(e => e.event === "DistributedFunds")
-  //   console.log("winner: ",event.args.recipient);
-
-  //   const circleInfo = await lendingCircle.getCircleDetails(0);
-  //   const periodNumber =  circleInfo[7].toString();
-
-  //   expect(periodNumber).to.equal("4");
+      eligible = await lendingCircle.getEligibleRecipients(0);
+      console.log("Eligible list:")
+      console.log(eligible)
 
 
-  // });
+      //late payment for user3
+      const amountDue = await lendingCircle.getLatePaymentDue(0, accounts[3].address);
+      console.log("amount due: ", ethers.utils.formatEther(amountDue.toString()));
+
+      // const contribute3 = await lendingCircle.latePayment(0, {value: ethers.utils.parseEther("1.05")});
+
+
+      const timetravel = (await time.latest()) + 301;
+      time.increaseTo(timetravel);
+
+
+
+
+  });
 
 
 });

@@ -36,7 +36,7 @@ contract LendingCircle {
         mapping(address => uint256) periodsPaid;
         address payable[] eligibleRecipients; // eligible to receive funds.
         address payable[] debtors; // list of participants that are late on payments. not eligible for payout until debts cleared.
-        mapping(uint256 => address) distributions;
+        mapping(uint256 => address payable) distributions;
     }
 
     mapping(address => uint256[]) public participantCircleIds;
@@ -69,10 +69,11 @@ contract LendingCircle {
 
     event DidntPayAfterReceivingPayout(
         address indexed participant,
-        uint256 payoutValue,
-        uint256 totalContributionSoFar,
-        uint256 contributionAmount,
+        uint256 circleId,
+        uint256 periodsPaid,
         uint256 numberOfPeriods,
+        uint256 currentPeriodNumber,
+        uint256 contributionAmount,
         PeriodType periodType
     );
 
@@ -305,10 +306,8 @@ contract LendingCircle {
 
         removeJoinRequest(circleId, participantAddress);
 
-        // console.log(
-        //     "circle.eligibleRecipients.length: %s",
-        //     circle.eligibleRecipients.length
-        // );
+        // user's contributions set to 1 (the deposit is the 1st payment)
+        circle.periodsPaid[participantAddress] = 1;
 
         // If the number of approved participants matches the number of periods, start the circle.
         if (circle.eligibleRecipients.length == circle.numberOfPeriods) {
@@ -488,8 +487,8 @@ contract LendingCircle {
             "Funds have already been distributed for this period!"
         );
 
-        //TODO: Remove from eligible list if they have not paid
-        //check if everyone paid
+        // check everyone paid. if not, move them to debtor list.
+        checkEveryonePaid(circleId);
 
         //placeholder for random number. will need to find VRF for each chain
         uint256 randomIndex = uint256(
@@ -547,6 +546,10 @@ contract LendingCircle {
     }
 
     function checkEveryonePaid(uint256 circleId) public {
+        //2 groups we need to check:
+        // people on the eligible list
+        // people that have already received payout
+
         Circle storage circle = circles[circleId];
 
         require(
@@ -558,83 +561,41 @@ contract LendingCircle {
             address payable participant = circle.eligibleRecipients[i];
 
             // Check if they haven't paid for the current period.
-            if (
-                circle.periodsPaid[participant] < circle.currentPeriodNumber - 1
-            ) {
-                // If they have not yet received their payout
-                if (isEligibleRecipient(circleId, participant)) {
-                    // Move them to debtors
-                    circle.debtors.push(participant);
-                    removeDebtorFromEligibleRecipients(circleId, participant);
+            if (circle.periodsPaid[participant] < circle.currentPeriodNumber) {
+                // Move them to debtors
+                circle.debtors.push(participant);
+                removeDebtorFromEligibleRecipients(circleId, participant);
 
-                    emit LateOnContribution(
-                        circleId,
-                        participant,
-                        circle.periodsPaid[participant] *
-                            circle.contributionAmount, //this shows how much was paid so far
-                        circle.currentPeriodNumber,
-                        circle.contributionAmount
-                    );
-                } else {
-                    // If they already received their payout but didn't pay
-                    uint256 totalPayout = circle.contributionAmount *
-                        circle.numberOfPeriods;
-                    uint256 totalContributionSoFar = circle.contributionAmount *
-                        (circle.numberOfPeriods - 1); // Assuming they paid for all other periods
-
-                    emit DidntPayAfterReceivingPayout(
-                        participant,
-                        totalPayout,
-                        totalContributionSoFar,
-                        circles[circleId].contributionAmount,
-                        circles[circleId].numberOfPeriods,
-                        circles[circleId].periodType
-                    );
-                }
+                emit LateOnContribution(
+                    circleId,
+                    participant,
+                    circle.periodsPaid[participant] * circle.contributionAmount, //this shows how much was paid so far
+                    circle.currentPeriodNumber,
+                    circle.contributionAmount
+                );
             }
         }
-    }
 
-    //deal with late/non payments
-    // severe case: emit event DidntPayAfterReceivingPayout
-    // mild case: possibly late on payments. move to debtors list. no longer eligible to receive payout. emit event LateOncontribution
-    function handleNonPayments(uint256 circleId) external {
-        Circle storage circle = circles[circleId];
-        for (uint i = 0; i < circle.eligibleRecipients.length; i++) {
-            address payable participant = circle.eligibleRecipients[i];
+        //check people that have already been paid.. see if they continued to pay
+        for (uint i = 1; i < circle.currentPeriodNumber; i++) {
+            address payable participant = circle.distributions[i];
 
             // Check if they haven't paid for the current period.
-            if (circle.periodsPaid[participant] < circle.numberOfPeriods) {
-                // If they have not yet received their payout
-                if (isEligibleRecipient(circleId, participant)) {
-                    // Move them to debtors
+            if (circle.periodsPaid[participant] < circle.currentPeriodNumber) {
+                // Move them to debtors
+                if (!isDebtor(circleId, participant)) {
                     circle.debtors.push(participant);
-                    removeDebtorFromEligibleRecipients(circleId, participant);
-
-                    emit LateOnContribution(
-                        circleId,
-                        participant,
-                        circle.periodsPaid[participant] *
-                            circle.contributionAmount, //this shows how much was paid so far
-                        circle.currentPeriodNumber,
-                        circle.contributionAmount
-                    );
-                } else {
-                    // If they already received their payout but didn't pay
-                    uint256 totalPayout = circle.contributionAmount *
-                        circle.numberOfPeriods;
-                    uint256 totalContributionSoFar = circle.contributionAmount *
-                        (circle.numberOfPeriods - 1); // Assuming they paid for all other periods
-
-                    emit DidntPayAfterReceivingPayout(
-                        participant,
-                        totalPayout,
-                        totalContributionSoFar,
-                        circles[circleId].contributionAmount,
-                        circles[circleId].numberOfPeriods,
-                        circles[circleId].periodType
-                    );
                 }
+
+                emit DidntPayAfterReceivingPayout(
+                    participant,
+                    circleId,
+                    circle.periodsPaid[participant],
+                    circle.numberOfPeriods,
+                    circle.currentPeriodNumber - 1,
+                    circle.contributionAmount,
+                    circle.periodType
+                );
             }
         }
     }
@@ -675,6 +636,29 @@ contract LendingCircle {
         return false;
     }
 
+    function getLatePaymentDue(
+        uint256 circleId,
+        address debtorAddress
+    ) public view returns (uint256) {
+        Circle storage circle = circles[circleId];
+        uint256 outstandingPrincipal = circle.contributionAmount *
+            (circle.currentPeriodNumber -
+                1 -
+                circle.periodsPaid[debtorAddress]);
+        console.log("currentPeriodNumber: %s", circle.currentPeriodNumber);
+        console.log("periods paid by 3: %s", circle.periodsPaid[debtorAddress]);
+
+        uint256 fees = ((outstandingPrincipal * circle.adminFeePercentage) *
+            125) / 10000; // pay extra 25% of the admin fee
+
+        uint256 totalDue = outstandingPrincipal + fees;
+
+        // console.log("outstandingPrincipal: %s", outstandingPrincipal);
+        // console.log("fees: %s", fees);
+
+        return totalDue;
+    }
+
     // Late payment function for debtors to settle their dues and get back to the eligibleRecipients list
     function latePayment(uint256 circleId) external payable {
         Circle storage circle = circles[circleId];
@@ -695,15 +679,12 @@ contract LendingCircle {
             "Amount sent is less than the total due"
         );
 
-        // if payment#3 was missed, this will only be verified when currentPeriod# is 4
-        // which is the previous period Number
         circle.periodsPaid[msg.sender] = circle.currentPeriodNumber - 1;
-        // circle.totalContributions[msg.sender] +=
-        //     circle.periodsPaid[msg.sender] *
-        //     circle.contributionAmount;
 
-        // Add participant back to eligibleRecipients
-        circle.eligibleRecipients.push(payable(msg.sender));
+        // Add participant back to eligibleRecipients, if they haven't received yet
+        if (!hasBeenPaid(circleId, msg.sender)) {
+            circle.eligibleRecipients.push(payable(msg.sender));
+        }
 
         // Remove from debtors list
         for (uint256 i = 0; i < circle.debtors.length; i++) {
@@ -717,27 +698,19 @@ contract LendingCircle {
         emit ContributedLate(circleId, msg.sender, outstandingPrincipal, fees);
     }
 
-    // View function to check outstanding payments
-    function getOutstandingPayments(
+    function hasBeenPaid(
         uint256 circleId,
-        address participantAddress
-    ) external view returns (uint256) {
+        address participant
+    ) private view returns (bool) {
         Circle storage circle = circles[circleId];
+        bool result = false;
 
-        if (!isDebtor(circleId, participantAddress)) {
-            return 0;
+        for (uint i = 1; i < circle.currentPeriodNumber; i++) {
+            if (circle.distributions[i] == participant) {
+                return true;
+            }
         }
-
-        uint256 outstanding = circle.contributionAmount *
-            circle.numberOfPeriods -
-            circle.periodsPaid[participantAddress] *
-            circle.contributionAmount;
-
-        uint256 latePaymentFee = (circle.contributionAmount *
-            circle.adminFeePercentage *
-            125) / 100; // pay extra 25% of the admin fee
-
-        return outstanding + latePaymentFee;
+        return result;
     }
 
     // Helper function to check if an address is a debtor
@@ -889,6 +862,29 @@ contract LendingCircle {
         }
 
         return (completedCount, eligibleValueAggregated, debtorValueAggregated);
+    }
+
+    // View function to check outstanding payments
+    function getOutstandingPayments(
+        uint256 circleId,
+        address participantAddress
+    ) external view returns (uint256) {
+        Circle storage circle = circles[circleId];
+
+        if (!isDebtor(circleId, participantAddress)) {
+            return 0;
+        }
+
+        uint256 outstanding = circle.contributionAmount *
+            circle.numberOfPeriods -
+            circle.periodsPaid[participantAddress] *
+            circle.contributionAmount;
+
+        uint256 latePaymentFee = (circle.contributionAmount *
+            circle.adminFeePercentage *
+            125) / 100; // pay extra 25% of the admin fee
+
+        return outstanding + latePaymentFee;
     }
 
     receive() external payable {}
