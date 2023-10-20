@@ -16,7 +16,7 @@ import BasicTable from './components/BasicTable';
 import { UseContractReadResult, ValidChains, CircleInfo } from './helpers/types'
 
 import { ethers } from 'ethers';
-import { createPublicClient } from 'viem';
+import { createPublicClient, http } from 'viem';
 
 
 
@@ -25,51 +25,59 @@ const Home: NextPage = () => {
   // admin gets option to create new circle
   // active participants get to see circles they're currently involved in
 
-  const [circles, setCircles] = useState<CircleInfo[]>([])
-
+  const [circles, setCircles] = useState<any>([])
+  const [circleCount, setCircleCount] = useState(0)
   const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
   const { chain, chains } = useNetwork();
 
-  useEffect(() => {
-    if (chain && isValidChain(chain.network)) {
-      setCurrentChain(chain.network);
-    }
+  const client = createPublicClient({
+    chain: chain,
+    transport: http()
+  })
 
+  // Set currentChain and circleCount, whenever chain changes
+  useEffect(() => {
     function isValidChain(chainName: string): chainName is ValidChains {
       return chainName === "scrollSepolia" || chainName === "mantleTestnet";
     }
-  }, [chain])
 
-  useEffect(() => {
-    console.log("current chain: ", currentChain)
-  }, [currentChain])
+    const getCircleCount = async (): Promise<number> => {
+      try {
+        const data: any = await client.readContract({
+          address: Config[currentChain].contractAddress as Address,
+          abi: Config[currentChain].abi,
+          functionName: 'circleCount',
+        })
 
-  //fetch # of circles
-  const [cirleCount, setCircleCount] = useState(0)
+        const result = parseInt(data.toString())
+        console.log("viem got circle count: ", result)
 
-  const { data: dataCircleCount, isError, isLoading } = useContractRead({
-    address: Config[currentChain].contractAddress as Address,
-    abi: LendingCircleArtifact.abi,
-    functionName: 'circleCount',
-  }) as UseContractReadResult
+        return result
+      } catch (error) {
+        console.error("There was an error fetching the data:", error);
+        return 0
+      }
+    };
 
-  useEffect(() => {
-    if (dataCircleCount) {
-      setCircleCount(parseInt(dataCircleCount.toString()))
+    if (chain && isValidChain(chain.network)) {
+
+      setCurrentChain(chain.network);
+
+      getCircleCount().then((result) => {
+        setCircleCount(result)
+      })
     }
 
-  }, [dataCircleCount])
+  }, [chain])
 
-  useEffect(() => {
-    console.log("circle count: ", cirleCount)
-  }, [cirleCount])
-
+  //user's address
   const { address } = useAccount();
 
-  // function getCircleCount() {
-
-  //   console.log("circle count: ", data.toString())
-  // }
+  useEffect(() => {
+    if (circleCount > 0) {
+      viewCircles()
+    }
+  }, [circleCount])
 
 
   //display welcome message if user is not connected
@@ -90,37 +98,33 @@ const Home: NextPage = () => {
     }
   }
 
-  const viewCircles = () => {
-    //display if user is connected
+  const viewCircles = async () => {
+    //get all circles
+    let circle: CircleInfo;
+    console.log("total# of circles: ", circleCount)
 
-    // for (let i = 0; i < cirleCount; i++) {
-    //   const { data: circleData, isError, isLoading } = useContractRead({
-    //     address: Config.scrollSepolia.contractAddress as Address,
-    //     abi: LendingCircleArtifact.abi,
-    //     functionName: 'getCircleDetails',
-    //     args: [i.toString()]
-    //   }) as UseContractReadResult
+    let circleArray = []
 
-    //   console.log(circleData)
-    //   setCircles(circleData);
+    for (let i = 0; i < circleCount; i++) {
+      const data: any = await client.readContract({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'getCircleDetails',
+        args: [i.toString()]
+      })
 
+      console.log(data)
+      const id = parseInt(data[0].toString());
+      const name = data[1]
 
-    // }
+      console.log("id: ", id)
+      console.log("name: ", name)
 
+      circleArray[i] = { id, name }
 
-    if (address) {
-      return (
-        <></>
-      )
     }
+    setCircles(circleArray)
   }
-
-
-  // useEffect(() => {
-  //   setCircleCount(getCircleCount())
-
-  // }, [])
-
 
   return (
     <div >
@@ -138,7 +142,7 @@ const Home: NextPage = () => {
       <div className="body-area">
         {welcomePage()}
 
-        {address ? viewCircles() : <></>}
+
 
         <BasicTable />
 

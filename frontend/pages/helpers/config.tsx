@@ -12,11 +12,10 @@ export const Config = {
         contractAddress: "0x4E829149DDA3542947D87EcA89206097ab2066C0",
         abi: LendingCircleArtifact.abi,
         rpcUrl: "https://mantle-testnet.scroll.io",
-
-
     }
 }
 
+//chain settings
 const scrollSepolia: Chain = {
     id: 534351,
     name: 'Scroll Sepolia Testnet',
@@ -61,4 +60,4 @@ const mantleTestnet: Chain = {
     testnet: true,
 };
 
-export const myChains = { scrollSepolia: scrollSepolia, mantleTestnet: mantleTestnet }
+export const myChains = { scrollSepolia, mantleTestnet }
