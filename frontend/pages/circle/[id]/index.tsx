@@ -1,7 +1,8 @@
 // pages/circle/[id]/index.tsx
-
+'use client';
 import { useRouter } from 'next/router';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import NavBar from '../../components/NavBar';
 
 const Circle = () => {
     const router = useRouter();
@@ -12,7 +13,9 @@ const Circle = () => {
 
     return (
         <div>
-            <ConnectButton />
+            <NavBar />
+
+
             <h1>Circle Page</h1>
             <p>ID: {id}</p>
 
