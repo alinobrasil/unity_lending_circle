@@ -49,6 +49,7 @@ const Home: NextPage = () => {
           functionName: 'circleCount',
         })
 
+
         const result = parseInt(data.toString())
         console.log("viem got circle count: ", result)
 
@@ -114,13 +115,18 @@ const Home: NextPage = () => {
       })
 
       console.log(data)
-      const id = parseInt(data[0].toString());
+      const id = data[0].toString();
       const name = data[1]
+      const numberOfPeriods = parseInt(data[5].toString())
+      const currentPeriodNumber = parseInt(data[7].toString())
+
 
       console.log("id: ", id)
       console.log("name: ", name)
+      console.log("numberOfPeriods: ", numberOfPeriods)
+      console.log("currentPeriodNumber: ", currentPeriodNumber)
 
-      circleArray[i] = { id, name }
+      circleArray[i] = { id, name, numberOfPeriods, currentPeriodNumber }
 
     }
     setCircles(circleArray)
@@ -142,9 +148,10 @@ const Home: NextPage = () => {
       <div className="body-area">
         {welcomePage()}
 
-
-
-        <BasicTable />
+        <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
+          Circles On Chain {currentChain}
+        </h1>
+        <BasicTable rows={circles} />
 
       </div>
 

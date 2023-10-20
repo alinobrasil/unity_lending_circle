@@ -11,34 +11,51 @@ import { FC } from 'react';
 
 function createData(
   id: string,
-  name: string
+  name: string,
+  numberOfPeriods: number,
+  currentPeriodNumber: number
 ) {
-  return { id, name };
+  return { id, name, numberOfPeriods, currentPeriodNumber };
 }
 
 const sampleRows = [
-  createData('0', "Buy Motorcycle"),
-  createData('1', "Masters Tuition"),
-  createData('2', "Buying car"),
+  createData('0', "[sample] Motorcycle", 3, 0),
+  createData('1', "[sample] Masters Tuition", 4, 1),
+  createData('2', "[sample] Buying car", 5, 6),
 ];
 
 type Row = {
   id: string;
   name: string;
+  numberOfPeriods: number;
+  currentPeriodNumber: number;
 };
 
 type CirclesArray = {
   rows: Row[];
 };
 
+function getStatus(row: Row): string {
+  const currentPeriodNumber = row.currentPeriodNumber
+  if (currentPeriodNumber == 0) {
+    return "Pending"
+  } else if (currentPeriodNumber <= row.numberOfPeriods) {
+    return "Active"
+  } else {
+    return "Completed"
+  }
+}
+
 const BasicTable: FC<CirclesArray> = ({ rows = sampleRows }) => {
   return (
+
     <TableContainer component={Paper} sx={{ maxWidth: 500 }}>
       <Table sx={{ minWidth: 400 }} aria-label="simple table">
         <TableHead>
           <TableRow>
-            <TableCell >Lending Circle ID</TableCell>
+            <TableCell >Circle ID</TableCell>
             <TableCell >Name</TableCell>
+            <TableCell >Status</TableCell>
             <TableCell >View</TableCell>
           </TableRow>
         </TableHead>
@@ -52,6 +69,7 @@ const BasicTable: FC<CirclesArray> = ({ rows = sampleRows }) => {
                 {row.id}
               </TableCell>
               <TableCell >{row.name}</TableCell>
+              <TableCell>{getStatus(row)}</TableCell>
               <TableCell>
                 <Link href={`/circle/${row.id}`}>
                   <button
