@@ -18,8 +18,6 @@ import { UseContractReadResult, ValidChains, CircleInfo } from './helpers/types'
 import { ethers } from 'ethers';
 import { createPublicClient, http } from 'viem';
 
-
-
 const Home: NextPage = () => {
   // view all lending circles, split into active, pending & completed circles
   // admin gets option to create new circle
@@ -48,7 +46,6 @@ const Home: NextPage = () => {
           abi: Config[currentChain].abi,
           functionName: 'circleCount',
         })
-
 
         const result = parseInt(data.toString())
         console.log("viem got circle count: ", result)
