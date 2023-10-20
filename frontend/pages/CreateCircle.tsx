@@ -64,8 +64,8 @@ function CreateCircle() {
     }, [cirleCount])
 
     const { data, isLoading: isLoadingWrite, isSuccess: isSuccessWrite, write: writeCreateCircle } = useContractWrite({
-        address: Config.scrollSepolia.contractAddress as Address,
-        abi: Config.scrollSepolia.abi,
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
         functionName: 'createCircle',
     }) as useContractWriteResult
 

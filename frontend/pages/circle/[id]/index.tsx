@@ -3,26 +3,42 @@
 import { useRouter } from 'next/router';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import NavBar from '../../components/NavBar';
-import { useAccount, useContractRead, useNetwork } from 'wagmi';
+import { useAccount, useContractRead, useNetwork, useContractWrite } from 'wagmi';
 import { useState, useEffect } from 'react';
 import { ValidChains, PeriodType } from '../../helpers/types';
 import { Address } from 'wagmi';
 import { createPublicClient, http } from 'viem';
 import { Config } from '../../helpers/config';
 import { utils } from 'ethers';
+import { useContractWriteResult } from '../../helpers/types'
 
 const Circle = () => {
     const router = useRouter();
-    const { id } = router.query; // Destructure the 'id' from the query object
+    const { id } = router.query;
 
+    //user's address
+    const { address } = useAccount();
+
+
+    //state variables ----------------------------------------------------------
     const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
     const { chain, chains } = useNetwork();
     const [client, setClient] = useState<any>(null)
     const [circle, setCircle] = useState<any>(null)
+    const [tempAddressInput, setTempAddressInput] = useState<string>("")
+
+    const [userType, setUserType] = useState<any>("") //admin, participant, neither
+
+    const [debtorsList, setDebtorsList] = useState<Address | null>(null)
+    const [eligibleList, setEligibleList] = useState<Address | null>(null)
+    const [pendingList, setPendingList] = useState<Address | null>(null)
 
 
 
 
+    // useEffects---------------------------------------------------------------
+
+    //look up admin list, then participant/debtor lists
     useEffect(() => {
         function isValidChain(chainName: string): chainName is ValidChains {
             return chainName === "scrollSepolia" || chainName === "mantleTestnet";
@@ -45,8 +61,8 @@ const Circle = () => {
 
     useEffect(() => {
 
+        //get details of Circle
         const getCircleDetails = async () => {
-            //get all circles
 
             const data: any = await client.readContract({
                 address: Config[currentChain].contractAddress as Address,
@@ -73,6 +89,43 @@ const Circle = () => {
             }
 
             return result
+        }
+
+        const getArrays = async () => {
+
+            //get PENDING list
+            const data1: any = await client.readContract({
+                address: Config[currentChain].contractAddress as Address,
+                abi: Config[currentChain].abi,
+                functionName: 'getJoinQueue',
+                args: [id]
+            })
+            console.log("JoinQueue:")
+            console.log(data1)
+            setPendingList(data1)
+
+            //get ELIGIBLE list
+            const data2: any = await client.readContract({
+                address: Config[currentChain].contractAddress as Address,
+                abi: Config[currentChain].abi,
+                functionName: 'getEligibleRecipients',
+                args: [id]
+            })
+            console.log("EligibleRecipients:")
+            console.log(data2)
+            setEligibleList(data2)
+
+
+            // get DEBTORS list
+            const data3: any = await client.readContract({
+                address: Config[currentChain].contractAddress as Address,
+                abi: Config[currentChain].abi,
+                functionName: 'getDebtors',
+                args: [id]
+            })
+            console.log("Debtors:")
+            console.log(data3)
+            setDebtorsList(data3)
 
         }
 
@@ -82,15 +135,35 @@ const Circle = () => {
                 console.log(result)
             })
 
-        }
+            getArrays()
 
+        }
     }, [client, id])
 
-    //user's address
-    const { address } = useAccount();
+    // smart contract WRITE functions -----------------------------------------------
+    const { data: dataContribute, isLoading: isLoadingContribute, isSuccess: isSuccessContribute, write: writeContribute } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'contribute',
+    }) as useContractWriteResult
 
-    if (!id) return <p>Loading...</p>;
+    const { data: dataRequestJoin, isLoading: isLoadingRequestJoin, isSuccess: isSuccessRequestJoin, write: writeRequestJoin } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'requestToJoin',
+    }) as useContractWriteResult
 
+    const { data: dataApprove, isLoading: isLoadingApprove, isSuccess: isSuccessApprove, write: writeApprove } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'approveJoinRequest',
+    }) as useContractWriteResult
+
+
+
+
+
+    //handler functions --------------------------------------------------------
     function getStatus(row: any): string {
         const currentPeriodNumber = row.currentPeriodNumber
         if (currentPeriodNumber == 0) {
@@ -103,9 +176,54 @@ const Circle = () => {
     }
 
     function getPayoutValue() {
-
         return (circle.numberOfPeriods * parseFloat(circle.contributionAmount)).toString()
     }
+
+    const contribute = () => {
+        console.log("contribute")
+        // totalAmount = (circle.contributionAmount *
+        //     (100 + circle.adminFeePercentage)) / 100;
+
+        const amountDue = parseFloat(circle.contributionAmount) * (100 + circle.adminFeePercentage) / 100
+        console.log("amount due: ", amountDue)
+
+        writeContribute({
+            args: [
+                id
+            ],
+            from: address,
+            value: utils.parseEther(amountDue.toString())
+        })
+    }
+
+    const requestJoin = () => {
+        // person gets to request to join a circle
+        const amountDue = parseFloat(circle.contributionAmount) * (100 + circle.adminFeePercentage) / 100
+        console.log("amount due: ", amountDue)
+
+        writeRequestJoin({
+            args: [
+                id
+            ],
+            from: address,
+            value: utils.parseEther(amountDue.toString())
+        })
+    }
+
+    const approveJoin = () => {
+        // admin gets to approve a person to join a circle
+
+        console.log(tempAddressInput)
+        writeApprove({
+            args: [
+                id,
+                tempAddressInput
+            ],
+            from: address,
+        })
+    }
+
+    if (!id) return <p>Loading...</p>;
 
     return (
         <div>
@@ -132,8 +250,40 @@ const Circle = () => {
                 {/* If user is participant, show when they got paid */}
 
                 {/* TODO: pending list */}
+                {/* If admin, extra "approve" button */}
 
                 {/* TODO: approved list */}
+
+                {/* TODO: debtors list (if circle has started) */}
+
+            </div>
+
+
+            <div>
+                {/* Test area */}
+                <br /><br /><br /><br />
+                <button className="btn btn-primary"
+                    onClick={() => requestJoin()} >  Request to Join
+                </button>
+
+                <br /><br />
+                <button
+                    className="btn btn-primary"
+                    onClick={() => { contribute() }}>Contribute
+                </button>
+
+                <p>isLoading: {String(isLoadingContribute)}</p>
+                <p>isSuccess: {String(isSuccessContribute)}</p>
+
+                <br /><br />
+                <input type="text"
+                    onChange={(e) => setTempAddressInput(e.target.value)}
+                    placeholder="Enter address to approve" />
+                <button
+                    onClick={() => { approveJoin() }}
+                    className="btn btn-primary">Approve Applicant
+                </button>
+                <p>true: {String(true)}</p>
 
             </div>
         </div>
