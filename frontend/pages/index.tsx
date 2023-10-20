@@ -4,7 +4,7 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 
-import { useAccount, useContractRead } from 'wagmi';
+import { useAccount, useContractRead, useNetwork } from 'wagmi';
 import LendingCircleArtifact from './helpers/LendingCircle.json'
 import NavBar from './components/NavBar';
 import { Config } from './helpers/config';
@@ -12,30 +12,11 @@ import { Address } from 'wagmi'
 
 import dynamic from 'next/dynamic';
 import BasicTable from './components/BasicTable';
-import { UseContractReadResult } from './helpers/types'
+
+import { UseContractReadResult, ValidChains, CircleInfo } from './helpers/types'
 
 import { ethers } from 'ethers';
-import { getCircleCount } from './components/chainData';
-
-enum PeriodType {
-  Every5Minutes,
-  Hourly,
-  Daily,
-  Weekly
-}
-
-type CircleInfo = {
-  id: number;
-  name: string;
-  contributionAmount: string;
-  periodType: string;
-  periodDuration: PeriodType,
-  numberOfPeriods: number,
-  adminFeePercentage: number,
-  currentPeriodNumber: number,
-  nextDueTime: number,
-  contributorsThisPeriod: number
-}
+import { createPublicClient } from 'viem';
 
 
 
@@ -45,16 +26,48 @@ const Home: NextPage = () => {
   // active participants get to see circles they're currently involved in
 
   const [circles, setCircles] = useState<CircleInfo[]>([])
+
+  const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
+  const { chain, chains } = useNetwork();
+
+  useEffect(() => {
+    if (chain && isValidChain(chain.network)) {
+      setCurrentChain(chain.network);
+    }
+
+    function isValidChain(chainName: string): chainName is ValidChains {
+      return chainName === "scrollSepolia" || chainName === "mantleTestnet";
+    }
+  }, [chain])
+
+  useEffect(() => {
+    console.log("current chain: ", currentChain)
+  }, [currentChain])
+
+  //fetch # of circles
   const [cirleCount, setCircleCount] = useState(0)
+
+  const { data: dataCircleCount, isError, isLoading } = useContractRead({
+    address: Config[currentChain].contractAddress as Address,
+    abi: LendingCircleArtifact.abi,
+    functionName: 'circleCount',
+  }) as UseContractReadResult
+
+  useEffect(() => {
+    if (dataCircleCount) {
+      setCircleCount(parseInt(dataCircleCount.toString()))
+    }
+
+  }, [dataCircleCount])
+
+  useEffect(() => {
+    console.log("circle count: ", cirleCount)
+  }, [cirleCount])
 
   const { address } = useAccount();
 
   // function getCircleCount() {
-  //   const { data, isError, isLoading } = useContractRead({
-  //     address: Config.scrollSepolia.contractAddress as Address,
-  //     abi: LendingCircleArtifact.abi,
-  //     functionName: 'circleCount',
-  //   }) as UseContractReadResult
+
   //   console.log("circle count: ", data.toString())
   // }
 
@@ -107,13 +120,6 @@ const Home: NextPage = () => {
   //   setCircleCount(getCircleCount())
 
   // }, [])
-
-
-
-
-
-
-
 
 
   return (

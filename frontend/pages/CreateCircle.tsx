@@ -1,13 +1,14 @@
 'use client';
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import NavBar from './components/NavBar'
-import { useContractRead, useAccount, useContractWrite } from 'wagmi'
+import { useContractRead, useAccount, useContractWrite, useNetwork } from 'wagmi'
 import { Config } from './helpers/config'
 import { Address } from 'wagmi'
 import { ethers } from 'ethers'
 import dynamic from 'next/dynamic';
 import { LoadingModal, SuccessModal } from './components/Modals'
-import { useContractWriteResult, UseContractReadResult } from './helpers/types'
+import { useContractWriteResult, UseContractReadResult, ValidChains } from './helpers/types'
+import LendingCircleArtifact from './helpers/LendingCircle.json'
 
 function CreateCircle() {
 
@@ -17,15 +18,50 @@ function CreateCircle() {
     const [periodType, setPeriodType] = useState('0')
     const [adminFeePercentage, setAdminFeePercentage] = useState('0')
 
+
+    //get current chain
+    const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
+    const { chain, chains } = useNetwork();
+
+    useEffect(() => {
+        if (chain && isValidChain(chain.network)) {
+            setCurrentChain(chain.network);
+        }
+
+        function isValidChain(chainName: string): chainName is ValidChains {
+            return chainName === "scrollSepolia" || chainName === "mantleTestnet";
+        }
+    }, [chain])
+
+    useEffect(() => {
+        console.log("current chain: ", currentChain)
+    }, [currentChain])
+
+
     const { address } = useAccount();
     // console.log("user address: ", address)
     // console.log("contract address:", Config.scrollSepolia.contractAddress)
 
-    const { data: circleCount, isError, isLoading } = useContractRead({
-        address: Config.scrollSepolia.contractAddress as Address,
-        abi: Config.scrollSepolia.abi,
+
+    //fetch # of circles
+    const [cirleCount, setCircleCount] = useState(0)
+
+    const { data: dataCircleCount, isError, isLoading } = useContractRead({
+        address: Config[currentChain].contractAddress as Address,
+        abi: LendingCircleArtifact.abi,
         functionName: 'circleCount',
     }) as UseContractReadResult
+
+    useEffect(() => {
+        if (dataCircleCount) {
+            setCircleCount(parseInt(dataCircleCount.toString()))
+        }
+
+    }, [dataCircleCount])
+
+    useEffect(() => {
+        console.log("circle count: ", cirleCount)
+    }, [cirleCount])
 
     const { data, isLoading: isLoadingWrite, isSuccess: isSuccessWrite, write: writeCreateCircle } = useContractWrite({
         address: Config.scrollSepolia.contractAddress as Address,
@@ -33,9 +69,6 @@ function CreateCircle() {
         functionName: 'createCircle',
     }) as useContractWriteResult
 
-    if (circleCount) {
-        console.log("circle count: ", circleCount.toString())
-    }
 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault(); // Prevents page refresh

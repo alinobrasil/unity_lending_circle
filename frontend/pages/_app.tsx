@@ -6,34 +6,11 @@ import type { AppProps } from 'next/app';
 import { configureChains, createConfig, WagmiConfig } from 'wagmi';
 
 import { publicProvider } from 'wagmi/providers/public';
-
-const scrollSepolia: Chain = {
-  id: 534351,
-  name: 'Scroll Sepolia Testnet',
-  network: 'scrollSepolia',
-  iconUrl: 'https://example.com/icon.svg',
-  iconBackground: '#fff',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'ETH',
-    symbol: 'ETH',
-  },
-  rpcUrls: {
-    public: { http: ['https://sepolia-rpc.scroll.io'] },
-    default: { http: ['https://sepolia-rpc.scroll.io'] },
-  },
-  blockExplorers: {
-    default: { name: 'ScrollScan', url: 'https://sepolia.scrollscan.dev' },
-    etherscan: { name: 'ScrollScan', url: 'https://sepolia.scrollscan.dev' },
-  },
-
-  testnet: true,
-};
-
+import { myChains } from './helpers/config';
 
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [scrollSepolia],
+  [myChains.scrollSepolia, myChains.mantleTestnet],
   [publicProvider()]
 );
 
