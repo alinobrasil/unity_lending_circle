@@ -196,31 +196,37 @@ const Home: NextPage = () => {
 
       <NavBar />
 
-      <div className="body-area">
-        {welcomePage()}
+      {address ?
+        (
+          <div className="body-area">
+            {welcomePage()}
 
 
-        <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
-          Circles On Chain {currentChain}
-        </h1>
+            <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
+              Circles On Chain {currentChain}
+            </h1>
 
-        {/* only admin can create circle */}
-        {userType === "admin" ?
-          (
+            {/* only admin can create circle */}
+            {userType === "admin" ?
+              (
 
-            <Link href='/CreateCircle'>
-              <button className='btn btn-primary'>
-                Create New Circle
-              </button>
-              <br />
-            </Link>
+                <Link href='/CreateCircle'>
+                  <button className='btn btn-primary'>
+                    Create New Circle
+                  </button>
+                  <br />
+                </Link>
 
-          ) : null}
+              ) : null}
 
-        <br />
-        <BasicTable rows={circles} />
+            <br />
 
-      </div>
+
+            <BasicTable rows={circles} />
+
+
+          </div>
+        ) : null}
 
       <div className='text-center fixed bottom-0 w-full'>
         <a href="https://twitter.com/alik_im" rel="noopener noreferrer" target="_blank">
