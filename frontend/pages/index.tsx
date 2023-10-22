@@ -17,6 +17,7 @@ import { UseContractReadResult, ValidChains, CircleInfo } from './helpers/types'
 
 import { ethers } from 'ethers';
 import { createPublicClient, http } from 'viem';
+import Link from 'next/link';
 
 const Home: NextPage = () => {
   // view all lending circles, split into active, pending & completed circles
@@ -145,9 +146,20 @@ const Home: NextPage = () => {
       <div className="body-area">
         {welcomePage()}
 
+
+
         <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
           Circles On Chain {currentChain}
         </h1>
+
+
+        <Link href='/CreateCircle'>
+          <button className='btn btn-primary'>
+            Create New Circle
+          </button>
+        </Link>
+
+
         <BasicTable rows={circles} />
 
       </div>

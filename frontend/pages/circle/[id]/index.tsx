@@ -10,7 +10,10 @@ import { Address } from 'wagmi';
 import { createPublicClient, http } from 'viem';
 import { Config } from '../../helpers/config';
 import { utils } from 'ethers';
-import { useContractWriteResult } from '../../helpers/types'
+import { useContractWriteResult, UseContractReadResult } from '../../helpers/types'
+import ParticipantsTable from '../../components/ParticipantsTable';
+import LendingCircleArtifact from '../../helpers/LendingCircle.json'
+import PayoutTable from '../../components/PayoutTable';
 
 const Circle = () => {
     const router = useRouter();
@@ -27,11 +30,55 @@ const Circle = () => {
     const [circle, setCircle] = useState<any>(null)
     const [tempAddressInput, setTempAddressInput] = useState<string>("")
 
+    const [circleStatus, setCircleStatus] = useState<string>("")
     const [userType, setUserType] = useState<any>("") //admin, participant, neither
 
-    const [debtorsList, setDebtorsList] = useState<Address | null>(null)
-    const [eligibleList, setEligibleList] = useState<Address | null>(null)
-    const [pendingList, setPendingList] = useState<Address | null>(null)
+    const [debtorsList, setDebtorsList] = useState<Address[]>([])
+    const [eligibleList, setEligibleList] = useState<Address[]>([])
+    const [pendingList, setPendingList] = useState<Address[]>([])
+    const [payoutHistory, setPayoutHistory] = useState<Address[]>([])
+    const [adminList, setAdminList] = useState<any>([])
+
+
+
+    // smart contract WRITE functions -----------------------------------------------
+    const { data: dataContribute, isLoading: isLoadingContribute, isSuccess: isSuccessContribute, write: writeContribute } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'contribute',
+    }) as useContractWriteResult
+
+    const { data: dataLatePayment, isLoading: isLoadingLatePayment, isSuccess: isSuccessLatePayment, write: writeLatePayment } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'latePayment',
+    }) as useContractWriteResult
+
+    const { data: dataRequestJoin, isLoading: isLoadingRequestJoin, isSuccess: isSuccessRequestJoin, write: writeRequestJoin } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'requestToJoin',
+    }) as useContractWriteResult
+
+    const { data: dataApprove, isLoading: isLoadingApprove, isSuccess: isSuccessApprove, write: writeApprove } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'approveJoinRequest',
+    }) as useContractWriteResult
+
+    const { data: dataDistribute, isLoading: isLoadingDistribute, isSuccess: isSuccessDistribute, write: writeDistribute } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'triggerDistribution',
+    }) as useContractWriteResult
+
+    const { data: datacheckEveryonePaid, isLoading: isLoadingcheckEveryonePaid, isSuccess: isSuccesscheckEveryonePaid, write: writecheckEveryonePaid } = useContractWrite({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'checkEveryonePaid',
+    }) as useContractWriteResult
+
+
 
 
 
@@ -59,6 +106,7 @@ const Circle = () => {
     }, [chain])
 
 
+    // read circle details and arrays
     useEffect(() => {
 
         //get details of Circle
@@ -93,6 +141,21 @@ const Circle = () => {
 
         const getArrays = async () => {
 
+            //get Admin  list
+            const data0: any = await client.readContract({
+                address: Config[currentChain].contractAddress as Address,
+                abi: Config[currentChain].abi,
+                functionName: 'admins',
+                args: ['']
+            })
+            console.log("admins:")
+            console.log(data0)
+            if (typeof data0 === 'string') {
+                setAdminList([data0])
+            } else {
+                console.log("admins not string")
+            }
+
             //get PENDING list
             const data1: any = await client.readContract({
                 address: Config[currentChain].contractAddress as Address,
@@ -100,8 +163,8 @@ const Circle = () => {
                 functionName: 'getJoinQueue',
                 args: [id]
             })
-            console.log("JoinQueue:")
-            console.log(data1)
+            // console.log("JoinQueue:")
+            // console.log(data1)
             setPendingList(data1)
 
             //get ELIGIBLE list
@@ -111,8 +174,8 @@ const Circle = () => {
                 functionName: 'getEligibleRecipients',
                 args: [id]
             })
-            console.log("EligibleRecipients:")
-            console.log(data2)
+            // console.log("EligibleRecipients:")
+            // console.log(data2)
             setEligibleList(data2)
 
 
@@ -127,40 +190,44 @@ const Circle = () => {
             console.log(data3)
             setDebtorsList(data3)
 
+            if (circle?.currentPeriodNumber > 1) {
+
+                // get PAYOUT history
+                const data4: any = await client.readContract({
+                    address: Config[currentChain].contractAddress as Address,
+                    abi: Config[currentChain].abi,
+                    functionName: 'getDistributions',
+                    args: [id]
+                })
+                // console.log("Payout history:")
+                // console.log(data4)
+                setPayoutHistory(data4)
+            }
+
         }
 
         if (client && id !== undefined) {
             getCircleDetails().then((result) => {
                 setCircle(result)
-                console.log(result)
+                // console.log(result)
             })
 
             getArrays()
 
         }
-    }, [client, id])
+    }, [client, id, isSuccessRequestJoin, isSuccessApprove, isSuccessDistribute])
 
-    // smart contract WRITE functions -----------------------------------------------
-    const { data: dataContribute, isLoading: isLoadingContribute, isSuccess: isSuccessContribute, write: writeContribute } = useContractWrite({
-        address: Config[currentChain].contractAddress as Address,
-        abi: Config[currentChain].abi,
-        functionName: 'contribute',
-    }) as useContractWriteResult
+    //determine user type
+    useEffect(() => {
+        determineUserType()
+    }, [debtorsList, eligibleList, pendingList, adminList])
 
-    const { data: dataRequestJoin, isLoading: isLoadingRequestJoin, isSuccess: isSuccessRequestJoin, write: writeRequestJoin } = useContractWrite({
-        address: Config[currentChain].contractAddress as Address,
-        abi: Config[currentChain].abi,
-        functionName: 'requestToJoin',
-    }) as useContractWriteResult
-
-    const { data: dataApprove, isLoading: isLoadingApprove, isSuccess: isSuccessApprove, write: writeApprove } = useContractWrite({
-        address: Config[currentChain].contractAddress as Address,
-        abi: Config[currentChain].abi,
-        functionName: 'approveJoinRequest',
-    }) as useContractWriteResult
-
-
-
+    useEffect(() => {
+        if (circle) {
+            console.log(getStatus(circle))
+            setCircleStatus(getStatus(circle))
+        }
+    }, [circle])
 
 
     //handler functions --------------------------------------------------------
@@ -196,10 +263,40 @@ const Circle = () => {
         })
     }
 
+    const latePayment = async () => {
+        console.log("Late payment amount due:")
+        // obtain outstanding amount due
+
+        const lateAmountDue: any = await client.readContract({
+            address: Config[currentChain].contractAddress as Address,
+            abi: Config[currentChain].abi,
+            functionName: 'getLatePaymentDue',
+            args: [id, address]
+        })
+        console.log(lateAmountDue)
+        console.log(utils.formatEther(lateAmountDue.toString()))
+
+        if (parseFloat(utils.formatEther(lateAmountDue.toString())) > 0) {
+            writeLatePayment({
+                args: [id],
+                from: address,
+                value: lateAmountDue.toString()
+            })
+        }
+        else {
+            console.log("nothing due")
+        }
+
+
+
+    }
+
     const requestJoin = () => {
         // person gets to request to join a circle
         const amountDue = parseFloat(circle.contributionAmount) * (100 + circle.adminFeePercentage) / 100
         console.log("amount due: ", amountDue)
+
+
 
         writeRequestJoin({
             args: [
@@ -210,17 +307,55 @@ const Circle = () => {
         })
     }
 
-    const approveJoin = () => {
-        // admin gets to approve a person to join a circle
 
-        console.log(tempAddressInput)
-        writeApprove({
+    const checkEveryonePaid = () => {
+
+        writecheckEveryonePaid({
             args: [
-                id,
-                tempAddressInput
+                id
             ],
             from: address,
         })
+    }
+
+    const approveJoin = (applicantAddress: any) => {
+        // admin gets to approve a person to join a circle
+
+
+        console.log(applicantAddress)
+        writeApprove({
+            args: [
+                id,
+                applicantAddress
+            ],
+            from: address,
+        })
+    }
+
+    const triggerDistribution = () => {
+        // admin gets to trigger a distribution
+        writeDistribute({
+            args: [
+                id?.toString(),
+                circle?.currentPeriodNumber.toString()
+            ],
+            from: address,
+        })
+    }
+
+    function determineUserType() {
+        if (adminList.includes(address)) {
+            setUserType("admin")
+        } else if (pendingList.includes(address as Address)) {
+            setUserType("pending")
+        } else if (eligibleList.includes(address as Address)) {
+            setUserType("eligible")
+        } else if (debtorsList.includes(address as Address)) {
+            setUserType("debtor")
+        } else {
+            setUserType("neither")
+        }
+        console.log("userType: ", userType)
     }
 
     if (!id) return <p>Loading...</p>;
@@ -231,59 +366,154 @@ const Circle = () => {
 
             <div className='body-area'>
 
-                <h1>Circle Details</h1>
-                <p>ID: {id}</p>
+                <h1>Circle ID: {id}</h1>
 
-                <p>Circle ID: {circle ? circle.id : ''}</p>
-                <p>Circle Name: {circle ? circle.name : ''} </p>
+                <h2>Circle Name: {circle ? circle.name : ''} </h2>
 
-                <h1>Status: {circle ? getStatus(circle) : ''}</h1>
+                <h3>Status: {circle ? getStatus(circle) : ''}</h3>
 
-                <p>Contribution Amount: {circle ? circle.contributionAmount + " ETH" : ''} </p>
-                <p>Number of periods: {circle ? circle.numberOfPeriods : ''}</p>
-                <p>Period Type: {circle ? PeriodType[circle.periodType] : ''}</p>
-                <p>Payout Value: {circle ? getPayoutValue() + " ETH" : ''}</p>
 
-                {/* TODO:If not admin/participant, show "REUEST TO JOIN" */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* basic text properties */}
+                    <div>
+                        <p>Contribution Amount: {circle ? circle.contributionAmount + " ETH" : ''} </p>
+                        <p>Number of periods: {circle ? circle.numberOfPeriods : ''}</p>
+                        <p>Period Type: {circle ? PeriodType[circle.periodType] : ''}</p>
+                        <p>Payout Value: {circle ? getPayoutValue() + " ETH" : ''}</p>
+                        <p>Current Period Number: {circle?.currentPeriodNumber}</p>
+                        <p>Next Due Time: {circle?.nextDueTime}</p>
+                        <p>Contributors This Period: {circle?.contributorsThisPeriod}</p>
+                    </div>
 
-                {/* TODO: Payout history */}
-                {/* If user is participant, show when they got paid */}
 
-                {/* TODO: pending list */}
-                {/* If admin, extra "approve" button */}
+                    {/* Button area */}
+                    <div className='grid grid-cols-3 gap-4 my-5'>
 
-                {/* TODO: approved list */}
+                        {circleStatus === "Pending" ? (
+                            <div>
+                                <button className="btn btn-primary"
+                                    onClick={() => requestJoin()} >  Request to Join
+                                </button>
+                                <p>isLoading: {String(isLoadingRequestJoin)}</p>
+                                <p>isSuccess: {String(isSuccessRequestJoin)}</p>
+                            </div>) : null}
 
-                {/* TODO: debtors list (if circle has started) */}
+                        {circleStatus === "Active" ?
+                            (
+                                <div>
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() => { contribute() }}>Contribute
+                                    </button>
+                                    <p>isLoading: {String(isLoadingContribute)}</p>
+                                    <p>isSuccess: {String(isSuccessContribute)}</p>
+                                </div>
+                            ) : null
+                        }
+
+                        {circleStatus === "Active" ? (
+                            <div>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={() => { latePayment() }}>Contribute Late
+                                </button>
+                                <p>isLoading: {String(isLoadingLatePayment)}</p>
+                                <p>isSuccess: {String(isSuccessLatePayment)}</p>
+                            </div>
+                        ) : null}
+
+                        {circleStatus === "Active" ? (
+                            <div>
+                                <button className="btn btn-primary"
+                                    onClick={() => triggerDistribution()}
+                                >
+                                    Distribute Funds
+                                </button>
+                                <p>isLoading: {String(isLoadingDistribute)}</p>
+                                <p>isSuccess: {String(isSuccessDistribute)}</p>
+                            </div>
+                        ) : null}
+
+
+                        {/* <div>
+                            <button className="btn btn-primary"
+                                onClick={() => checkEveryonePaid()}
+                            >
+                                check EveryonePaid
+                            </button>
+                            <p>isLoading: {String(isLoadingcheckEveryonePaid)}</p>
+                            <p>isSuccess: {String(isSuccesscheckEveryonePaid)}</p>
+                        </div> */}
+                    </div>
+
+                </div>
+
+                {/* Table area*/}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+                    {/* TODO: pending list */}
+                    {/* If admin, extra "approve" button */}
+
+                    {/* show pending table only if circle status is pending */}
+                    {circleStatus === "Pending" ? (
+                        <div className='min-w-600'>
+                            <h3>Pending Applicants</h3>
+                            <p>Admins need to approve applicants. When enough participants join (equal to number of periods), this lending circle will start the 1st period. </p>
+                            <ParticipantsTable rows={pendingList} />
+                        </div>
+                    ) : null}
+
+                    <div>
+                        <h3>Approved (Eligible) Participants</h3>
+                        <p>These are approved participants eligible to receive a payout.</p>
+                        <ParticipantsTable rows={eligibleList} />
+                    </div>
+
+                    {/* Show debtors list only if not pending */}
+                    {circleStatus !== "Pending" ? (
+                        <div>
+                            <h3>Debtors</h3>
+                            <p>These participants missed a payment. They need to catch up on late payments to be eligible to receive a payout.</p>
+                            <ParticipantsTable rows={debtorsList} />
+                        </div>
+                    ) : null}
+
+                    {/* TODO: late payment button */}
+
+                    {/* TODO: Payout history */}
+                    {/* If user is participant, show when they got paid */}
+                    {/* TODO: Distribute funds (if admin or participant) */}
+
+                    {circleStatus !== "Pending" ? (
+                        <div>
+                            <h3>Payout History</h3>
+                            <PayoutTable data={payoutHistory}
+                                currentPeriod={circle ? circle.currentPeriodNumber : 0}
+                            />
+                        </div>
+                    ) : null}
+                </div>
+
 
             </div>
 
 
             <div>
                 {/* Test area */}
-                <br /><br /><br /><br />
-                <button className="btn btn-primary"
-                    onClick={() => requestJoin()} >  Request to Join
-                </button>
 
-                <br /><br />
-                <button
-                    className="btn btn-primary"
-                    onClick={() => { contribute() }}>Contribute
-                </button>
-
-                <p>isLoading: {String(isLoadingContribute)}</p>
-                <p>isSuccess: {String(isSuccessContribute)}</p>
 
                 <br /><br />
                 <input type="text"
                     onChange={(e) => setTempAddressInput(e.target.value)}
                     placeholder="Enter address to approve" />
                 <button
-                    onClick={() => { approveJoin() }}
+                    onClick={() => { approveJoin(tempAddressInput) }}
                     className="btn btn-primary">Approve Applicant
                 </button>
-                <p>true: {String(true)}</p>
+                <p>isLoading: {String(isLoadingApprove)}</p>
+                <p>isSuccess: {String(isSuccessApprove)}</p>
+
+
 
             </div>
         </div>

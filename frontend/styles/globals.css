@@ -8,12 +8,14 @@
   }
 
   .body-area {
-    @apply bg-white p-4;
+    @apply bg-white p-10;
   }
 
   .title {
     @apply text-2xl font-bold;
   }
+
+
 }
 
 
@@ -25,4 +27,49 @@
   100% {
     transform: rotate(360deg);
   }
+}
+
+
+
+
+/* Global styles for h1 */
+h1 {
+  font-size: 2.5em;
+  font-weight: bold;
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: normal;
+  word-spacing: 0.2em;
+  border-bottom: 2px solid #eee;
+  /* Added bottom border to h1 */
+  padding-bottom: 0.5em;
+  /* Padding for the bottom border */
+}
+
+/* Global styles for h2 */
+h2 {
+  font-size: 2em;
+  font-weight: 600;
+  /* Changed 'semi-bold' to 600 since 'semi-bold' isn't a valid font-weight value */
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  color: #555;
+  /* Removed bottom border from h2 */
+}
+
+/* Global styles for h3 */
+h3 {
+  font-size: 1.75em;
+  /* Size between default and h2 */
+  font-weight: 500;
+  /* Medium font weight for distinction without being too bold */
+  margin-top: 1em;
+  margin-bottom: 0.25em;
+  /* Slightly less margin than h2 */
+  color: #777;
+  /* A bit lighter than h2 for hierarchy */
+  text-transform: capitalize;
+  /* First letter of each word is capitalized for a subtle distinction */
 }
