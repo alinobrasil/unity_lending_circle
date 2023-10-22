@@ -148,8 +148,8 @@ const Circle = () => {
                 functionName: 'admins',
                 args: ['']
             })
-            console.log("admins:")
-            console.log(data0)
+            // console.log("admins:")
+            // console.log(data0)
             if (typeof data0 === 'string') {
                 setAdminList([data0])
             } else {
@@ -224,10 +224,10 @@ const Circle = () => {
 
     useEffect(() => {
         if (circle) {
-            console.log(getStatus(circle))
+            console.log("Circle status: ", getStatus(circle))
             setCircleStatus(getStatus(circle))
         }
-    }, [circle])
+    }, [circle, address])
 
 
     //handler functions --------------------------------------------------------
@@ -353,7 +353,7 @@ const Circle = () => {
         } else if (debtorsList.includes(address as Address)) {
             setUserType("debtor")
         } else {
-            setUserType("neither")
+            setUserType("none")
         }
         console.log("userType: ", userType)
     }
@@ -389,7 +389,7 @@ const Circle = () => {
                     {/* Button area */}
                     <div className='grid grid-cols-3 gap-4 my-5'>
 
-                        {circleStatus === "Pending" ? (
+                        {circleStatus === "Pending" && userType === 'none' ? (
                             <div>
                                 <button className="btn btn-primary"
                                     onClick={() => requestJoin()} >  Request to Join
@@ -398,7 +398,7 @@ const Circle = () => {
                                 <p>isSuccess: {String(isSuccessRequestJoin)}</p>
                             </div>) : null}
 
-                        {circleStatus === "Active" ?
+                        {circleStatus === "Active" && ['debtor', 'eligible'].includes(userType) ?
                             (
                                 <div>
                                     <button
@@ -411,7 +411,7 @@ const Circle = () => {
                             ) : null
                         }
 
-                        {circleStatus === "Active" ? (
+                        {circleStatus === "Active" && userType === 'debtor' ? (
                             <div>
                                 <button
                                     className="btn btn-primary"
@@ -422,7 +422,7 @@ const Circle = () => {
                             </div>
                         ) : null}
 
-                        {circleStatus === "Active" ? (
+                        {circleStatus === "Active" && ['admin', 'debtor', 'eligible'].includes(userType) ? (
                             <div>
                                 <button className="btn btn-primary"
                                     onClick={() => triggerDistribution()}
@@ -444,7 +444,28 @@ const Circle = () => {
                             <p>isLoading: {String(isLoadingcheckEveryonePaid)}</p>
                             <p>isSuccess: {String(isSuccesscheckEveryonePaid)}</p>
                         </div> */}
+
+                        {userType === "admin" ? (
+                            <div>
+                                <br /><br />
+                                <input type="text"
+                                    onChange={(e) => setTempAddressInput(e.target.value)}
+                                    placeholder="Enter address to approve"
+                                    className='border rounded p-2'
+                                />
+                                <button
+                                    onClick={() => { approveJoin(tempAddressInput) }}
+                                    className="btn btn-primary">Approve Applicant
+                                </button>
+                                <p>isLoading: {String(isLoadingApprove)}</p>
+                                <p>isSuccess: {String(isSuccessApprove)}</p>
+
+                            </div>
+                        ) : null}
                     </div>
+
+
+
 
                 </div>
 
@@ -465,7 +486,7 @@ const Circle = () => {
 
                     <div>
                         <h3>Approved (Eligible) Participants</h3>
-                        <p>These are approved participants eligible to receive a payout.</p>
+                        <p>These are approved participants eligible to receive a payout. If they miss a contribution, they'll be removed from the list until they catch up on payments.</p>
                         <ParticipantsTable rows={eligibleList} />
                     </div>
 
@@ -498,24 +519,6 @@ const Circle = () => {
             </div>
 
 
-            <div>
-                {/* Test area */}
-
-
-                <br /><br />
-                <input type="text"
-                    onChange={(e) => setTempAddressInput(e.target.value)}
-                    placeholder="Enter address to approve" />
-                <button
-                    onClick={() => { approveJoin(tempAddressInput) }}
-                    className="btn btn-primary">Approve Applicant
-                </button>
-                <p>isLoading: {String(isLoadingApprove)}</p>
-                <p>isSuccess: {String(isSuccessApprove)}</p>
-
-
-
-            </div>
         </div>
 
 
