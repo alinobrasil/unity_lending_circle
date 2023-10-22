@@ -199,7 +199,7 @@ const Home: NextPage = () => {
       {address ?
         (
           <div className="body-area">
-            {welcomePage()}
+
 
 
             <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
@@ -226,7 +226,11 @@ const Home: NextPage = () => {
 
 
           </div>
-        ) : null}
+        ) : (
+          <div>
+            {welcomePage()}
+          </div>
+        )}
 
       <div className='text-center fixed bottom-0 w-full'>
         <a href="https://twitter.com/alik_im" rel="noopener noreferrer" target="_blank">
