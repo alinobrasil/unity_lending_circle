@@ -87,6 +87,9 @@ const Circle = () => {
 
     //look up admin list, then participant/debtor lists
     useEffect(() => {
+        console.log(currentChain)
+        console.log(chain)
+
         function isValidChain(chainName: string): chainName is ValidChains {
             return chainName === "scrollSepolia" || chainName === "mantleTestnet";
         }
@@ -98,11 +101,29 @@ const Circle = () => {
             chain: chain,
             transport: http()
         }))
-
     }, [chain])
 
     useEffect(() => {
-        console.log(currentChain)
+        const getPayoutHistory = async () => {
+            if (circle.currentPeriodNumber > 1) {
+
+                // get PAYOUT history
+                const data4: any = await client.readContract({
+                    address: Config[currentChain].contractAddress as Address,
+                    abi: Config[currentChain].abi,
+                    functionName: 'getDistributions',
+                    args: [id]
+                })
+                // console.log("Payout history:")
+                // console.log(data4)
+                setPayoutHistory(data4)
+            }
+        }
+        getPayoutHistory
+    }, [circle])
+
+    useEffect(() => {
+
     }, [chain])
 
 
@@ -230,23 +251,8 @@ const Circle = () => {
             console.log("Circle status: ", getStatus(circle))
             setCircleStatus(getStatus(circle))
         }
-        const getPayoutHistory = async () => {
-            if (circle.currentPeriodNumber > 1) {
 
-                // get PAYOUT history
-                const data4: any = await client.readContract({
-                    address: Config[currentChain].contractAddress as Address,
-                    abi: Config[currentChain].abi,
-                    functionName: 'getDistributions',
-                    args: [id]
-                })
-                // console.log("Payout history:")
-                // console.log(data4)
-                setPayoutHistory(data4)
-            }
-        }
-        getPayoutHistory
-    }, [circle, userType])
+    }, [circle])
 
 
     //handler functions --------------------------------------------------------

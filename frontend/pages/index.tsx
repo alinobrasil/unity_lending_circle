@@ -32,13 +32,13 @@ const Home: NextPage = () => {
   const [adminList, setAdminList] = useState<Address[]>([])
   const [userType, setUserType] = useState("user")
 
-  let client: any;
+  // let client: any;
 
   // console.log(chain)
 
   // Set currentChain and circleCount, whenever chain changes
   useEffect(() => {
-    client = createPublicClient({
+    const client = createPublicClient({
       chain: myChains[chain?.network as keyof typeof myChains],
       transport: http()
     })
@@ -141,6 +141,10 @@ const Home: NextPage = () => {
   }
 
   const viewCircles = async () => {
+    const client = createPublicClient({
+      chain: myChains[chain?.network as keyof typeof myChains],
+      transport: http()
+    })
     //get all circles
     let circle: CircleInfo;
     console.log("total# of circles: ", circleCount)
