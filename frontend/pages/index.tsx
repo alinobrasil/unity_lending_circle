@@ -32,15 +32,17 @@ const Home: NextPage = () => {
   const [adminList, setAdminList] = useState<Address[]>([])
   const [userType, setUserType] = useState("user")
 
-  const client = createPublicClient({
-    chain: myChains[chain?.network as keyof typeof myChains],
-    transport: http()
-  })
+  let client: any;
 
   // console.log(chain)
 
   // Set currentChain and circleCount, whenever chain changes
   useEffect(() => {
+    client = createPublicClient({
+      chain: myChains[chain?.network as keyof typeof myChains],
+      transport: http()
+    })
+
     function isValidChain(chainName: string): chainName is ValidChains {
       return chainName === "scrollSepolia" || chainName === "mantleTestnet";
     }
