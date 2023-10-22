@@ -2,18 +2,18 @@
 'use client';
 import { useRouter } from 'next/router';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import NavBar from '../../components/NavBar';
+import NavBar from '../../../components/NavBar';
 import { useAccount, useContractRead, useNetwork, useContractWrite } from 'wagmi';
 import { useState, useEffect } from 'react';
-import { ValidChains, PeriodType } from '../../helpers/types';
+import { ValidChains, PeriodType } from '../../../helpers/types';
 import { Address } from 'wagmi';
 import { createPublicClient, http } from 'viem';
-import { Config } from '../../helpers/config';
+import { Config } from '../../../helpers/config';
 import { utils } from 'ethers';
-import { useContractWriteResult, UseContractReadResult } from '../../helpers/types'
-import ParticipantsTable from '../../components/ParticipantsTable';
-import LendingCircleArtifact from '../../helpers/LendingCircle.json'
-import PayoutTable from '../../components/PayoutTable';
+import { useContractWriteResult, UseContractReadResult } from '../../../helpers/types'
+import ParticipantsTable from '../../../components/ParticipantsTable';
+import LendingCircleArtifact from '../../../helpers/LendingCircle.json'
+import PayoutTable from '../../../components/PayoutTable';
 
 const Circle = () => {
     const router = useRouter();
@@ -512,7 +512,7 @@ const Circle = () => {
 
                     <div>
                         <h3>Approved (Eligible) Participants</h3>
-                        <p>These are approved participants eligible to receive a payout. If they miss a contribution, they'll be removed from the list until they catch up on payments.</p>
+                        <p>These are approved participants eligible to receive a payout. If they miss a contribution, they will be removed from the list until they catch up on payments.</p>
                         <ParticipantsTable rows={eligibleList} />
                     </div>
 

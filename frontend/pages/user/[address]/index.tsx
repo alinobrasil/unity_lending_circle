@@ -2,16 +2,16 @@
 'use client';
 import { useRouter } from 'next/router';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import NavBar from '../../components/NavBar';
+import NavBar from '../../../components/NavBar';
 import { useAccount, useContractRead, useNetwork, useContractWrite } from 'wagmi';
 import { useState, useEffect } from 'react';
-import { ValidChains, PeriodType } from '../../helpers/types';
+import { ValidChains, PeriodType } from '../../../helpers/types';
 import { Address } from 'wagmi';
 import { createPublicClient, http } from 'viem';
-import { Config } from '../../helpers/config';
+import { Config } from '../../../helpers/config';
 import { utils } from 'ethers';
-import { useContractWriteResult } from '../../helpers/types'
-import ParticipantsTable from '../../components/ParticipantsTable';
+import { useContractWriteResult } from '../../../helpers/types'
+import ParticipantsTable from '../../../components/ParticipantsTable';
 
 const User = () => {
     const router = useRouter();

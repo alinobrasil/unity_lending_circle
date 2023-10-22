@@ -1,14 +1,14 @@
 'use client';
 import React, { useState, useEffect } from 'react'
-import NavBar from './components/NavBar'
+import NavBar from '../components/NavBar'
 import { useContractRead, useAccount, useContractWrite, useNetwork } from 'wagmi'
-import { Config } from './helpers/config'
+import { Config } from '../helpers/config'
 import { Address } from 'wagmi'
 import { ethers } from 'ethers'
 import dynamic from 'next/dynamic';
-import { LoadingModal, SuccessModal } from './components/Modals'
-import { useContractWriteResult, UseContractReadResult, ValidChains } from './helpers/types'
-import LendingCircleArtifact from './helpers/LendingCircle.json'
+import { LoadingModal, SuccessModal } from '../components/Modals'
+import { useContractWriteResult, UseContractReadResult, ValidChains } from '../helpers/types'
+import LendingCircleArtifact from '../helpers/LendingCircle.json'
 
 function CreateCircle() {
 

@@ -5,20 +5,20 @@ import Head from 'next/head';
 import { useState, useEffect } from 'react';
 
 import { useAccount, useContractRead, useNetwork } from 'wagmi';
-import LendingCircleArtifact from './helpers/LendingCircle.json'
-import NavBar from './components/NavBar';
-import { Config } from './helpers/config';
+import LendingCircleArtifact from '../helpers/LendingCircle.json'
+import NavBar from '../components/NavBar';
+import { Config } from '../helpers/config';
 import { Address } from 'wagmi'
 
 import dynamic from 'next/dynamic';
-import BasicTable from './components/BasicTable';
+import BasicTable from '../components/BasicTable';
 
-import { UseContractReadResult, ValidChains, CircleInfo, MyChains } from './helpers/types'
+import { UseContractReadResult, ValidChains, CircleInfo, MyChains } from '../helpers/types'
 
 import { ethers } from 'ethers';
 import { createPublicClient, http } from 'viem';
 import Link from 'next/link';
-import { myChains } from './helpers/config';
+import { myChains } from '../helpers/config';
 
 const Home: NextPage = () => {
   // view all lending circles, split into active, pending & completed circles

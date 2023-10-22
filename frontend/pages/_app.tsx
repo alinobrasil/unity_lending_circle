@@ -6,7 +6,7 @@ import type { AppProps } from 'next/app';
 import { configureChains, createConfig, WagmiConfig } from 'wagmi';
 
 import { publicProvider } from 'wagmi/providers/public';
-import { myChains } from './helpers/config';
+import { myChains } from '../helpers/config';
 
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
