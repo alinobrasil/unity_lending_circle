@@ -20,45 +20,75 @@ const User = () => {
     const router = useRouter();
 
     const { chain, chains } = useNetwork();
+    const [creditReport, setCreditReport] = useState<any>(null)
 
     const { address } = router.query;
-    console.log(address)
+    console.log("address: ", address)
 
     //user's address
     const { address: connectedAddress } = useAccount();
     // console.log("Connected address: ", connectedAddress)
 
-
     //state variables ----------------------------------------------------------
     const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
 
-    // useEffects---------------------------------------------------------------
 
+    let client: any;
+
+    // useEffects---------------------------------------------------------------
+    function isValidChain(chainName: string): chainName is ValidChains {
+        return chainName === "scrollSepolia" || chainName === "mantleTestnet";
+    }
     useEffect(() => {
-        function isValidChain(chainName: string): chainName is ValidChains {
-            return chainName === "scrollSepolia" || chainName === "mantleTestnet";
-        }
+
         if (chain && isValidChain(chain.network)) {
             setCurrentChain(chain.network);
         }
 
-        console.log("Chain network:")
-        console.log(chain?.network)
+        if (chain) {
+            client = createPublicClient({
+                chain: chain,
+                transport: http()
+            })
 
-        const client = createPublicClient({
-            chain: myChains[chain?.network as keyof typeof myChains],
-            transport: http()
-        })
+            console.log("Chain network:")
+            console.log(chain?.network)
 
-    }, [chain])
+
+            console.log(Config)
+            const fetchData = async () => {
+
+                if (address) {
+                    const data1: any = await client.readContract({
+                        address: Config[currentChain].contractAddress as Address,
+                        abi: Config[currentChain].abi,
+                        functionName: 'getUserCircleStats',
+                        args: [address]
+                    })
+                    // console.log("user credit report: ", data1)
+                    const cleanData = {
+                        totalCirclesCompleted: data1[0].toString(),
+                        totalEligibleValue: utils.formatEther(data1[1]),
+                        totalDebtorValue: utils.formatEther(data1[2]),
+                    }
+                    setCreditReport(cleanData)
+                    console.log(cleanData)
+                }
+            }
+            fetchData()
+
+
+        }
+    }, [currentChain])
 
     useEffect(() => {
-        console.log(currentChain)
+        if (chain && isValidChain(chain.network)) {
+            setCurrentChain(chain.network);
+        }
+        console.log("current chain :", currentChain)
+
     }, [chain])
 
-
-
-    // if (!routeAddress) return <p>Loading...</p>;
 
     return (
         <div>
@@ -83,8 +113,21 @@ const User = () => {
                         </button>
                     </a>
                 </div>
-
+                <br></br>
                 <h2>Credit Report</h2>
+
+                {creditReport ? (
+                    <div>
+                        <p className="text-4xl text-center font-semibold text-blue-600 leading-relaxed mt-4 mb-4"
+                        >Total Circles Completed: {creditReport.totalCirclesCompleted}</p>
+
+                        <p className="text-4xl text-center font-semibold text-blue-600 leading-relaxed mt-4 mb-4"
+                        >Total Debtor Value: {creditReport.totalDebtorValue} ETH</p>
+                    </div>
+                ) : (
+                    <p>Loading...</p>
+                )}
+
 
             </div>
         </div >

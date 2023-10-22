@@ -87,8 +87,8 @@ const Circle = () => {
 
     //look up admin list, then participant/debtor lists
     useEffect(() => {
-        console.log(currentChain)
-        console.log(chain)
+        // console.log(currentChain)
+        // console.log(chain)
 
         function isValidChain(chainName: string): chainName is ValidChains {
             return chainName === "scrollSepolia" || chainName === "mantleTestnet";
@@ -104,9 +104,11 @@ const Circle = () => {
     }, [chain])
 
     useEffect(() => {
-        const getPayoutHistory = async () => {
-            if (circle.currentPeriodNumber > 1) {
 
+        const getPayoutHistory = async () => {
+            if (parseInt(circle?.currentPeriodNumber) > 1) {
+
+                // console.log("asdfasdfasdf*************************")
                 // get PAYOUT history
                 const data4: any = await client.readContract({
                     address: Config[currentChain].contractAddress as Address,
@@ -114,12 +116,13 @@ const Circle = () => {
                     functionName: 'getDistributions',
                     args: [id]
                 })
-                // console.log("Payout history:")
-                // console.log(data4)
+                console.log("Payout history-------------------:")
+                console.log(data4)
                 setPayoutHistory(data4)
+
             }
         }
-        getPayoutHistory
+        getPayoutHistory()
     }, [circle])
 
     useEffect(() => {
@@ -211,6 +214,9 @@ const Circle = () => {
             console.log(data3)
             setDebtorsList(data3)
 
+
+            console.log("circle period number: ", circle?.currentPeriodNumber)
+            console.log("circle itself: ", circle)
             if (circle?.currentPeriodNumber > 1) {
 
                 // get PAYOUT history
@@ -220,7 +226,7 @@ const Circle = () => {
                     functionName: 'getDistributions',
                     args: [id]
                 })
-                console.log("Payout history:")
+                console.log("Payout history------------- (getarrays)")
                 console.log(data4)
                 setPayoutHistory(data4)
             }
@@ -228,13 +234,14 @@ const Circle = () => {
         }
 
         if (client && id !== undefined) {
-            getCircleDetails().then((result) => {
-                setCircle(result)
-                // console.log(result)
-            })
-
-            getArrays()
-
+            getCircleDetails()
+                .then((result) => {
+                    setCircle(result)
+                    // console.log(result)
+                })
+                .then(() => {
+                    getArrays()
+                })
         }
     }, [client, id, isSuccessRequestJoin, isSuccessApprove, isSuccessDistribute])
 
@@ -377,6 +384,9 @@ const Circle = () => {
             setUserType("eligible")
         } else if (debtorsList.includes(address as Address)) {
             setUserType("debtor")
+        }
+        else if (payoutHistory.includes(address as Address)) {
+            setUserType("gotPaid")
         } else {
             setUserType("none")
         }
@@ -425,7 +435,7 @@ const Circle = () => {
                                 </div>
                             ) : null}
 
-                        {circleStatus === "Active" && ['debtor', 'eligible'].includes(userType) ?
+                        {circleStatus === "Active" && ['debtor', 'eligible', 'gotPaid'].includes(userType) ?
                             (
                                 <div>
                                     <button
@@ -449,7 +459,7 @@ const Circle = () => {
                                 </div>
                             ) : null}
 
-                        {circleStatus === "Active" && ['admin', 'debtor', 'eligible'].includes(userType) ?
+                        {circleStatus === "Active" && ['admin', 'debtor', 'eligible', 'gotPaid'].includes(userType) ?
                             (
                                 <div>
                                     <button className="btn btn-primary"
@@ -462,34 +472,6 @@ const Circle = () => {
                                 </div>
                             ) : null}
 
-
-                        {/* <div>
-                            <button className="btn btn-primary"
-                                onClick={() => checkEveryonePaid()}
-                            >
-                                check EveryonePaid
-                            </button>
-                            <p>isLoading: {String(isLoadingcheckEveryonePaid)}</p>
-                            <p>isSuccess: {String(isSuccesscheckEveryonePaid)}</p>
-                        </div> */}
-
-                        {/* {userType === "admin" ? (
-                            <div>
-                                <br /><br />
-                                <input type="text"
-                                    onChange={(e) => setTempAddressInput(e.target.value)}
-                                    placeholder="Enter address to approve"
-                                    className='border rounded p-2'
-                                />
-                                <button
-                                    onClick={() => { approveJoin(tempAddressInput) }}
-                                    className="btn btn-primary">Approve Applicant
-                                </button>
-                                <p>isLoading: {String(isLoadingApprove)}</p>
-                                <p>isSuccess: {String(isSuccessApprove)}</p>
-
-                            </div>
-                        ) : null} */}
                     </div>
 
 
