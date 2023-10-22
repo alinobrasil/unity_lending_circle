@@ -45,6 +45,9 @@ const User = () => {
             setCurrentChain(chain.network);
         }
 
+        console.log("Chain network:")
+        console.log(chain?.network)
+
         const client = createPublicClient({
             chain: myChains[chain?.network as keyof typeof myChains],
             transport: http()
