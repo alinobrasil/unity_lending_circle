@@ -12,9 +12,15 @@ import { Config } from '../../../helpers/config';
 import { utils } from 'ethers';
 import { useContractWriteResult } from '../../../helpers/types'
 import ParticipantsTable from '../../../components/ParticipantsTable';
+import { MyChains } from '../../../helpers/types';
+import { myChains } from '../../../helpers/config';
 
 const User = () => {
     const router = useRouter();
+
+    const { chain, chains } = useNetwork();
+
+
     const { address } = router.query;
     console.log(address)
 
@@ -25,7 +31,6 @@ const User = () => {
 
     //state variables ----------------------------------------------------------
     const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
-    const { chain, chains } = useNetwork();
     const [client, setClient] = useState<any>(null)
 
 
@@ -40,10 +45,12 @@ const User = () => {
             setCurrentChain(chain.network);
         }
 
-        setClient(createPublicClient({
-            chain: chain,
+        const client = createPublicClient({
+            chain: myChains[chain?.network as keyof typeof myChains],
             transport: http()
-        }))
+        })
+
+        setClient(client)
 
     }, [chain])
 
