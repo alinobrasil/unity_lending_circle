@@ -128,20 +128,19 @@ const Home: NextPage = () => {
 
   //display welcome message if user is not connected
   const welcomePage = () => {
+    return (
+      <div className="body-area">
 
-    if (!address) {
-      return (
-        <>
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Welcome to Unity Lending Circles
-          </h1>
+        <h1 className="text-4xl font-bold text-gray-800 mb-4">
+          Welcome to Unity Lending Circles
+        </h1>
 
-          <p>Get started by connecting your wallet </p>
+        <p>Get started by connecting your wallet </p>
 
-          <ConnectButton />
-        </>
-      )
-    }
+        <ConnectButton />
+      </div>
+    )
+
   }
 
   const viewCircles = async () => {
