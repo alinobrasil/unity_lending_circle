@@ -21,11 +21,11 @@ const Circle = () => {
 
     //user's address
     const { address } = useAccount();
-
+    const { chain, chains } = useNetwork();
 
     //state variables ----------------------------------------------------------
     const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
-    const { chain, chains } = useNetwork();
+
     const [client, setClient] = useState<any>(null)
     const [circle, setCircle] = useState<any>(null)
     const [tempAddressInput, setTempAddressInput] = useState<string>("")

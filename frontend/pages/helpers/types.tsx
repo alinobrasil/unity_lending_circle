@@ -1,3 +1,5 @@
+import { Chain } from "@rainbow-me/rainbowkit";
+
 export type UseContractReadResult = {
     data: any;
     isError: boolean;
@@ -34,3 +36,9 @@ export enum PeriodType {
     Daily,
     Weekly
 }
+
+export type MyChains = {
+    scrollSepolia: Chain;
+    mantleTestnet: Chain;
+    [key: string]: Chain; // This is the index signature
+};

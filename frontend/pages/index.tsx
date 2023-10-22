@@ -13,11 +13,12 @@ import { Address } from 'wagmi'
 import dynamic from 'next/dynamic';
 import BasicTable from './components/BasicTable';
 
-import { UseContractReadResult, ValidChains, CircleInfo } from './helpers/types'
+import { UseContractReadResult, ValidChains, CircleInfo, MyChains } from './helpers/types'
 
 import { ethers } from 'ethers';
 import { createPublicClient, http } from 'viem';
 import Link from 'next/link';
+import { myChains } from './helpers/config';
 
 const Home: NextPage = () => {
   // view all lending circles, split into active, pending & completed circles
@@ -32,9 +33,11 @@ const Home: NextPage = () => {
   const [userType, setUserType] = useState("user")
 
   const client = createPublicClient({
-    chain: chain,
+    chain: myChains[chain?.network as keyof typeof myChains],
     transport: http()
   })
+
+  // console.log(chain)
 
   // Set currentChain and circleCount, whenever chain changes
   useEffect(() => {
