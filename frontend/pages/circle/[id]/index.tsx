@@ -199,8 +199,8 @@ const Circle = () => {
                     functionName: 'getDistributions',
                     args: [id]
                 })
-                // console.log("Payout history:")
-                // console.log(data4)
+                console.log("Payout history:")
+                console.log(data4)
                 setPayoutHistory(data4)
             }
 
@@ -217,6 +217,9 @@ const Circle = () => {
         }
     }, [client, id, isSuccessRequestJoin, isSuccessApprove, isSuccessDistribute])
 
+
+
+
     //determine user type
     useEffect(() => {
         determineUserType()
@@ -227,7 +230,23 @@ const Circle = () => {
             console.log("Circle status: ", getStatus(circle))
             setCircleStatus(getStatus(circle))
         }
-    }, [circle, address])
+        const getPayoutHistory = async () => {
+            if (circle.currentPeriodNumber > 1) {
+
+                // get PAYOUT history
+                const data4: any = await client.readContract({
+                    address: Config[currentChain].contractAddress as Address,
+                    abi: Config[currentChain].abi,
+                    functionName: 'getDistributions',
+                    args: [id]
+                })
+                // console.log("Payout history:")
+                // console.log(data4)
+                setPayoutHistory(data4)
+            }
+        }
+        getPayoutHistory
+    }, [circle, userType])
 
 
     //handler functions --------------------------------------------------------
@@ -389,14 +408,16 @@ const Circle = () => {
                     {/* Button area */}
                     <div className='grid grid-cols-3 gap-4 my-5'>
 
-                        {circleStatus === "Pending" && userType === 'none' ? (
-                            <div>
-                                <button className="btn btn-primary"
-                                    onClick={() => requestJoin()} >  Request to Join
-                                </button>
-                                <p>isLoading: {String(isLoadingRequestJoin)}</p>
-                                <p>isSuccess: {String(isSuccessRequestJoin)}</p>
-                            </div>) : null}
+                        {circleStatus === "Pending" && userType === 'none' ?
+                            (
+                                <div>
+                                    <button className="btn btn-primary"
+                                        onClick={() => requestJoin()} >  Request to Join
+                                    </button>
+                                    <p>isLoading: {String(isLoadingRequestJoin)}</p>
+                                    <p>isSuccess: {String(isSuccessRequestJoin)}</p>
+                                </div>
+                            ) : null}
 
                         {circleStatus === "Active" && ['debtor', 'eligible'].includes(userType) ?
                             (
@@ -408,31 +429,32 @@ const Circle = () => {
                                     <p>isLoading: {String(isLoadingContribute)}</p>
                                     <p>isSuccess: {String(isSuccessContribute)}</p>
                                 </div>
-                            ) : null
-                        }
+                            ) : null}
 
-                        {circleStatus === "Active" && userType === 'debtor' ? (
-                            <div>
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => { latePayment() }}>Contribute Late
-                                </button>
-                                <p>isLoading: {String(isLoadingLatePayment)}</p>
-                                <p>isSuccess: {String(isSuccessLatePayment)}</p>
-                            </div>
-                        ) : null}
+                        {circleStatus === "Active" && userType === 'debtor' ?
+                            (
+                                <div>
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() => { latePayment() }}>Contribute Late
+                                    </button>
+                                    <p>isLoading: {String(isLoadingLatePayment)}</p>
+                                    <p>isSuccess: {String(isSuccessLatePayment)}</p>
+                                </div>
+                            ) : null}
 
-                        {circleStatus === "Active" && ['admin', 'debtor', 'eligible'].includes(userType) ? (
-                            <div>
-                                <button className="btn btn-primary"
-                                    onClick={() => triggerDistribution()}
-                                >
-                                    Distribute Funds
-                                </button>
-                                <p>isLoading: {String(isLoadingDistribute)}</p>
-                                <p>isSuccess: {String(isSuccessDistribute)}</p>
-                            </div>
-                        ) : null}
+                        {circleStatus === "Active" && ['admin', 'debtor', 'eligible'].includes(userType) ?
+                            (
+                                <div>
+                                    <button className="btn btn-primary"
+                                        onClick={() => triggerDistribution()}
+                                    >
+                                        Distribute Funds
+                                    </button>
+                                    <p>isLoading: {String(isLoadingDistribute)}</p>
+                                    <p>isSuccess: {String(isSuccessDistribute)}</p>
+                                </div>
+                            ) : null}
 
 
                         {/* <div>
@@ -445,7 +467,7 @@ const Circle = () => {
                             <p>isSuccess: {String(isSuccesscheckEveryonePaid)}</p>
                         </div> */}
 
-                        {userType === "admin" ? (
+                        {/* {userType === "admin" ? (
                             <div>
                                 <br /><br />
                                 <input type="text"
@@ -461,7 +483,7 @@ const Circle = () => {
                                 <p>isSuccess: {String(isSuccessApprove)}</p>
 
                             </div>
-                        ) : null}
+                        ) : null} */}
                     </div>
 
 
@@ -480,7 +502,11 @@ const Circle = () => {
                         <div className='min-w-600'>
                             <h3>Pending Applicants</h3>
                             <p>Admins need to approve applicants. When enough participants join (equal to number of periods), this lending circle will start the 1st period. </p>
-                            <ParticipantsTable rows={pendingList} />
+                            <ParticipantsTable
+                                rows={pendingList}
+                                showCondition={userType === "admin"}
+                                handleClick={approveJoin}
+                            />
                         </div>
                     ) : null}
 
@@ -508,6 +534,7 @@ const Circle = () => {
                     {circleStatus !== "Pending" ? (
                         <div>
                             <h3>Payout History</h3>
+                            <p>These participants have received their payout. </p>
                             <PayoutTable data={payoutHistory}
                                 currentPeriod={circle ? circle.currentPeriodNumber : 0}
                             />

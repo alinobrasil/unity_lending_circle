@@ -18,11 +18,8 @@ const sampleRows = [
   '0x9343e38cFfccCb4996C76eD56C97c7f27560917b',
 ];
 
-type UserList = {
-  rows: any;
-};
 
-const ParticipantsTable: FC<UserList> = ({ rows = sampleRows }) => {
+const ParticipantsTable: FC<any> = ({ rows = sampleRows, showCondition = false, handleClick }) => {
 
   if (rows.length == 0) {
     return (
@@ -32,9 +29,17 @@ const ParticipantsTable: FC<UserList> = ({ rows = sampleRows }) => {
     )
   }
 
+  function shortenAddress(givenAddress: any, chars = 4) {
+    if (!givenAddress) return "";
+    const prefix = givenAddress.substring(0, 2 + chars);
+    const suffix = givenAddress.substring(givenAddress.length - chars);
+    return `${prefix}...${suffix}`;
+  }
+
+
   return (
     <TableContainer component={Paper} sx={{ maxWidth: 500 }}>
-      <Table sx={{ minWidth: 400 }} aria-label="simple table">
+      <Table sx={{ minWidth: 300 }} aria-label="simple table">
         <TableHead>
           <TableRow>
             <TableCell >Address</TableCell>
@@ -49,19 +54,30 @@ const ParticipantsTable: FC<UserList> = ({ rows = sampleRows }) => {
               sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
             >
               <TableCell component="th" scope="row">
-                {row}
+                {shortenAddress(row)}
               </TableCell>
 
               <TableCell>
                 <Link href={`/user/${row}`}>
                   <button
-                    className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"                  >
+                    className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
+                  >
                     View
                   </button>
                 </Link>
               </TableCell>
 
-              <TableCell ></TableCell>
+              <TableCell >
+                {showCondition ?
+                  (
+                    <button
+                      className="bg-green-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded"
+                      onClick={() => handleClick(row)}
+                    >
+                      Approve
+                    </button>
+                  ) : null}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

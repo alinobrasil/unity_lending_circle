@@ -24,6 +24,13 @@ const PayoutTable: FC<any> = ({ data, currentPeriod }) => {
 
   const rows: any = data
 
+  function shortenAddress(givenAddress: any, chars = 4) {
+    if (!givenAddress) return "";
+    const prefix = givenAddress.substring(0, 2 + chars);
+    const suffix = givenAddress.substring(givenAddress.length - chars);
+    return `${prefix}...${suffix}`;
+  }
+
   if (!rows) {
     return (
       <div>
@@ -32,9 +39,10 @@ const PayoutTable: FC<any> = ({ data, currentPeriod }) => {
     )
   }
 
+
   return (
     <TableContainer component={Paper} sx={{ maxWidth: 500 }}>
-      <Table sx={{ minWidth: 400 }} aria-label="simple table">
+      <Table sx={{ minWidth: 300 }} aria-label="simple table">
         <TableHead>
           <TableRow>
             <TableCell >Period #</TableCell>
@@ -53,7 +61,7 @@ const PayoutTable: FC<any> = ({ data, currentPeriod }) => {
               </TableCell>
 
               <TableCell>
-                {row}
+                {shortenAddress(row)}
                 {/* Maybe link to user's transactions in block explorer */}
                 {/* <Link href={`/user/${row}`}>
                   <button

@@ -28,6 +28,8 @@ const Home: NextPage = () => {
   const [circleCount, setCircleCount] = useState(0)
   const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
   const { chain, chains } = useNetwork();
+  const [adminList, setAdminList] = useState<Address[]>([])
+  const [userType, setUserType] = useState("user")
 
   const client = createPublicClient({
     chain: chain,
@@ -49,7 +51,7 @@ const Home: NextPage = () => {
         })
 
         const result = parseInt(data.toString())
-        console.log("viem got circle count: ", result)
+        // console.log("viem got circle count: ", result)
 
         return result
       } catch (error) {
@@ -67,6 +69,25 @@ const Home: NextPage = () => {
       })
     }
 
+    const getArrays = async () => {
+
+      //get Admin  list
+      const data0: any = await client.readContract({
+        address: Config[currentChain].contractAddress as Address,
+        abi: Config[currentChain].abi,
+        functionName: 'admins',
+        args: ['']
+      })
+      // console.log("admins:")
+      // console.log(data0)
+      if (typeof data0 === 'string') {
+        setAdminList([data0 as Address])
+      } else {
+        console.log("admins not string")
+      }
+    }
+    getArrays()
+
   }, [chain])
 
   //user's address
@@ -77,6 +98,23 @@ const Home: NextPage = () => {
       viewCircles()
     }
   }, [circleCount])
+
+  useEffect(() => {
+    if (address) {
+
+      if (adminList.includes(address as Address)) {
+        setUserType("admin")
+      } else {
+        setUserType("user")
+      }
+    }
+  }, [adminList])
+
+  useEffect(() => {
+    if (address) {
+      console.log("userType: ", userType)
+    }
+  }, [userType])
 
 
   //display welcome message if user is not connected
@@ -112,17 +150,17 @@ const Home: NextPage = () => {
         args: [i.toString()]
       })
 
-      console.log(data)
+      // console.log(data)
       const id = data[0].toString();
       const name = data[1]
       const numberOfPeriods = parseInt(data[5].toString())
       const currentPeriodNumber = parseInt(data[7].toString())
 
 
-      console.log("id: ", id)
-      console.log("name: ", name)
-      console.log("numberOfPeriods: ", numberOfPeriods)
-      console.log("currentPeriodNumber: ", currentPeriodNumber)
+      // console.log("id: ", id)
+      // console.log("name: ", name)
+      // console.log("numberOfPeriods: ", numberOfPeriods)
+      // console.log("currentPeriodNumber: ", currentPeriodNumber)
 
       circleArray[i] = { id, name, numberOfPeriods, currentPeriodNumber }
 
@@ -147,19 +185,24 @@ const Home: NextPage = () => {
         {welcomePage()}
 
 
-
         <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
           Circles On Chain {currentChain}
         </h1>
 
+        {/* only admin can create circle */}
+        {userType === "admin" ?
+          (
 
-        <Link href='/CreateCircle'>
-          <button className='btn btn-primary'>
-            Create New Circle
-          </button>
-        </Link>
+            <Link href='/CreateCircle'>
+              <button className='btn btn-primary'>
+                Create New Circle
+              </button>
+              <br />
+            </Link>
 
+          ) : null}
 
+        <br />
         <BasicTable rows={circles} />
 
       </div>
