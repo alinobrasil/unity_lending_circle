@@ -15,11 +15,11 @@ import ParticipantsTable from '../../../components/ParticipantsTable';
 import { MyChains } from '../../../helpers/types';
 import { myChains } from '../../../helpers/config';
 
+
 const User = () => {
     const router = useRouter();
 
     const { chain, chains } = useNetwork();
-
 
     const { address } = router.query;
     console.log(address)
@@ -31,11 +31,8 @@ const User = () => {
 
     //state variables ----------------------------------------------------------
     const [currentChain, setCurrentChain] = useState('scrollSepolia' as ValidChains)
-    const [client, setClient] = useState<any>(null)
-
 
     // useEffects---------------------------------------------------------------
-
 
     useEffect(() => {
         function isValidChain(chainName: string): chainName is ValidChains {
@@ -53,8 +50,6 @@ const User = () => {
             transport: http()
         })
 
-        setClient(client)
-
     }, [chain])
 
     useEffect(() => {
@@ -69,14 +64,30 @@ const User = () => {
         <div>
             <NavBar />
 
-
-            <div className='body-area'>
+            <div className='body-area p-4'>
 
                 <h1>User Details</h1>
                 <h2>Address: {address}</h2>
+                <div className="grid grid-cols-3 gap-4">
+                    <a href={`https://web3.bio/${address}`}
+                        target="_blank" rel="noopener noreferrer">
+                        <button className="btn">
+                            Web3.bio Profile
+                        </button>
+                    </a>
+
+                    <a href={`https://opensea.io/${address}`}
+                        target="_blank" rel="noopener noreferrer">
+                        <button className="btn">
+                            OpenSea Profile
+                        </button>
+                    </a>
+                </div>
+
+                <h2>Credit Report</h2>
 
             </div>
-        </div>
+        </div >
 
 
     );

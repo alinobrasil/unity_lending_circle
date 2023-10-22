@@ -38,60 +38,64 @@ const Home: NextPage = () => {
 
   // Set currentChain and circleCount, whenever chain changes
   useEffect(() => {
-    const client = createPublicClient({
-      chain: myChains[chain?.network as keyof typeof myChains],
-      transport: http()
-    })
-
     function isValidChain(chainName: string): chainName is ValidChains {
       return chainName === "scrollSepolia" || chainName === "mantleTestnet";
     }
 
-    const getCircleCount = async (): Promise<number> => {
-      try {
-        const data: any = await client.readContract({
+    if (address) {
+      const client = createPublicClient({
+        chain: myChains[chain?.network as keyof typeof myChains],
+        transport: http()
+      })
+
+
+
+      const getCircleCount = async (): Promise<number> => {
+        try {
+          const data: any = await client.readContract({
+            address: Config[currentChain].contractAddress as Address,
+            abi: Config[currentChain].abi,
+            functionName: 'circleCount',
+          })
+
+          const result = parseInt(data.toString())
+          // console.log("viem got circle count: ", result)
+
+          return result
+        } catch (error) {
+          console.error("There was an error fetching the data:", error);
+          return 0
+        }
+      };
+
+      if (chain && isValidChain(chain.network)) {
+
+        setCurrentChain(chain.network);
+
+        getCircleCount().then((result) => {
+          setCircleCount(result)
+        })
+      }
+
+      const getArrays = async () => {
+
+        //get Admin  list
+        const data0: any = await client.readContract({
           address: Config[currentChain].contractAddress as Address,
           abi: Config[currentChain].abi,
-          functionName: 'circleCount',
+          functionName: 'admins',
+          args: ['']
         })
-
-        const result = parseInt(data.toString())
-        // console.log("viem got circle count: ", result)
-
-        return result
-      } catch (error) {
-        console.error("There was an error fetching the data:", error);
-        return 0
+        // console.log("admins:")
+        // console.log(data0)
+        if (typeof data0 === 'string') {
+          setAdminList([data0 as Address])
+        } else {
+          console.log("admins not string")
+        }
       }
-    };
-
-    if (chain && isValidChain(chain.network)) {
-
-      setCurrentChain(chain.network);
-
-      getCircleCount().then((result) => {
-        setCircleCount(result)
-      })
+      getArrays()
     }
-
-    const getArrays = async () => {
-
-      //get Admin  list
-      const data0: any = await client.readContract({
-        address: Config[currentChain].contractAddress as Address,
-        abi: Config[currentChain].abi,
-        functionName: 'admins',
-        args: ['']
-      })
-      // console.log("admins:")
-      // console.log(data0)
-      if (typeof data0 === 'string') {
-        setAdminList([data0 as Address])
-      } else {
-        console.log("admins not string")
-      }
-    }
-    getArrays()
 
   }, [chain])
 
@@ -99,7 +103,7 @@ const Home: NextPage = () => {
   const { address } = useAccount();
 
   useEffect(() => {
-    if (circleCount > 0) {
+    if (circleCount > 0 && address) {
       viewCircles()
     }
   }, [circleCount])
@@ -124,57 +128,58 @@ const Home: NextPage = () => {
 
   //display welcome message if user is not connected
   const welcomePage = () => {
+    return (
+      <div className="body-area">
 
-    if (!address) {
-      return (
-        <>
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Welcome to Unity Lending Circles
-          </h1>
+        <h1 className="text-4xl font-bold text-gray-800 mb-4">
+          Welcome to Unity Lending Circles
+        </h1>
 
-          <p>Get started by connecting your wallet </p>
+        <p>Get started by connecting your wallet </p>
 
-          <ConnectButton />
-        </>
-      )
-    }
+        <ConnectButton />
+      </div>
+    )
+
   }
 
   const viewCircles = async () => {
-    const client = createPublicClient({
-      chain: myChains[chain?.network as keyof typeof myChains],
-      transport: http()
-    })
-    //get all circles
-    let circle: CircleInfo;
-    console.log("total# of circles: ", circleCount)
-
-    let circleArray = []
-
-    for (let i = 0; i < circleCount; i++) {
-      const data: any = await client.readContract({
-        address: Config[currentChain].contractAddress as Address,
-        abi: Config[currentChain].abi,
-        functionName: 'getCircleDetails',
-        args: [i.toString()]
+    if (address) {
+      const client = createPublicClient({
+        chain: myChains[chain?.network as keyof typeof myChains],
+        transport: http()
       })
+      //get all circles
+      let circle: CircleInfo;
+      console.log("total# of circles: ", circleCount)
 
-      // console.log(data)
-      const id = data[0].toString();
-      const name = data[1]
-      const numberOfPeriods = parseInt(data[5].toString())
-      const currentPeriodNumber = parseInt(data[7].toString())
+      let circleArray = []
+
+      for (let i = 0; i < circleCount; i++) {
+        const data: any = await client.readContract({
+          address: Config[currentChain].contractAddress as Address,
+          abi: Config[currentChain].abi,
+          functionName: 'getCircleDetails',
+          args: [i.toString()]
+        })
+
+        // console.log(data)
+        const id = data[0].toString();
+        const name = data[1]
+        const numberOfPeriods = parseInt(data[5].toString())
+        const currentPeriodNumber = parseInt(data[7].toString())
 
 
-      // console.log("id: ", id)
-      // console.log("name: ", name)
-      // console.log("numberOfPeriods: ", numberOfPeriods)
-      // console.log("currentPeriodNumber: ", currentPeriodNumber)
+        // console.log("id: ", id)
+        // console.log("name: ", name)
+        // console.log("numberOfPeriods: ", numberOfPeriods)
+        // console.log("currentPeriodNumber: ", currentPeriodNumber)
 
-      circleArray[i] = { id, name, numberOfPeriods, currentPeriodNumber }
+        circleArray[i] = { id, name, numberOfPeriods, currentPeriodNumber }
 
+      }
+      setCircles(circleArray)
     }
-    setCircles(circleArray)
   }
 
   return (
@@ -190,31 +195,41 @@ const Home: NextPage = () => {
 
       <NavBar />
 
-      <div className="body-area">
-        {welcomePage()}
+      {address ?
+        (
+          <div className="body-area">
 
 
-        <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
-          Circles On Chain {currentChain}
-        </h1>
 
-        {/* only admin can create circle */}
-        {userType === "admin" ?
-          (
+            <h1 className="text-4xl font-semibold text-gray-800 leading-tight mb-4">
+              Circles On Chain {currentChain}
+            </h1>
 
-            <Link href='/CreateCircle'>
-              <button className='btn btn-primary'>
-                Create New Circle
-              </button>
-              <br />
-            </Link>
+            {/* only admin can create circle */}
+            {userType === "admin" ?
+              (
 
-          ) : null}
+                <Link href='/CreateCircle'>
+                  <button className='btn btn-primary'>
+                    Create New Circle
+                  </button>
+                  <br />
+                </Link>
 
-        <br />
-        <BasicTable rows={circles} />
+              ) : null}
 
-      </div>
+            <br />
+
+
+            <BasicTable rows={circles} />
+
+
+          </div>
+        ) : (
+          <div>
+            {welcomePage()}
+          </div>
+        )}
 
       <div className='text-center fixed bottom-0 w-full'>
         <a href="https://twitter.com/alik_im" rel="noopener noreferrer" target="_blank">
